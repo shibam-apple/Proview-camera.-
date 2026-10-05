@@ -59,6 +59,8 @@ jobs:
           files: proview-debug.apk
           body: |
             Debug build from ${{ github.sha }}.
+            Direct link for this build (never cached):
+            https://github.com/${{ github.repository }}/releases/download/build-${{ github.run_number }}/proview-debug.apk
             Install `proview-debug.apk` on your phone (allow "Install unknown apps" if asked).
 
       - name: Upload test reports

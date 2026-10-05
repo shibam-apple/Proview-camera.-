@@ -9,7 +9,9 @@ to a flagship Vivo X200, on as many Android phones as possible.
 ## Get the app
 **[Download the latest build (APK)](https://github.com/shibam-apple/Proview-camera.-/releases/latest/download/proview-debug.apk)**.
 No GitHub sign-in is needed. Every push to `main` publishes a new build to
-[Releases](https://github.com/shibam-apple/Proview-camera.-/releases).
+[Releases](https://github.com/shibam-apple/Proview-camera.-/releases). If your browser serves an old
+copy, use the per-build link in the newest release's notes. The installed build number is shown on
+the device check screen (long-press "Library").
 
 ## Build it yourself
 ```sh

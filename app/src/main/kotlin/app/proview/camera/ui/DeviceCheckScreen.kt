@@ -37,6 +37,10 @@ import app.proview.camera.ui.design.glass
  */
 @Composable
 fun DeviceCheckScreen(report: DeviceReport?, onShare: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val version = androidx.compose.runtime.remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -51,7 +55,7 @@ fun DeviceCheckScreen(report: DeviceReport?, onShare: () -> Unit) {
         ) {
             item {
                 Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    Text("PROVIEW · M0 BUILD", style = Type.Over, color = Palette.Text2)
+                    Text("PROVIEW · BUILD $version".uppercase(), style = Type.Over, color = Palette.Text2)
                     Spacer(Modifier.height(10.dp))
                     Text("Device check", style = Type.Header, color = Palette.Text1)
                 }
