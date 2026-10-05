@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -36,7 +37,12 @@ import app.proview.camera.ui.design.glass
  * mapping can be confirmed on real hardware. Moves to a debug menu once the camera UI lands.
  */
 @Composable
-fun DeviceCheckScreen(report: DeviceReport?, onShare: () -> Unit) {
+fun DeviceCheckScreen(
+    report: DeviceReport?,
+    onShare: () -> Unit,
+    saveBursts: Boolean = false,
+    onSaveBursts: (Boolean) -> Unit = {},
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val version = androidx.compose.runtime.remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
@@ -64,6 +70,7 @@ fun DeviceCheckScreen(report: DeviceReport?, onShare: () -> Unit) {
                 item { Text("Reading cameras…", style = Type.Body, color = Palette.Text2, modifier = Modifier.padding(8.dp)) }
             } else {
                 item { TierCard(report) }
+                item { BurstToggle(saveBursts, onSaveBursts) }
                 items(report.cameras, key = { it.id }) { CameraCard(it) }
             }
         }
@@ -84,6 +91,41 @@ private fun tierMeaning(tier: Tier?) = when (tier) {
     Tier.B -> "YUV burst merge"
     Tier.C -> "Single frame + enhancement"
     null -> "No back camera found"
+}
+
+/** Debug switch: keep every night burst (DNG frames + metadata) in Download/Proview/Bursts. */
+@Composable
+private fun BurstToggle(on: Boolean, onChange: (Boolean) -> Unit) {
+    val shape = RoundedCornerShape(26.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .glass(shape)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Save night bursts", style = Type.Ttl, color = Palette.Text1)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Keeps the RAW frames of each night shot in Download/Proview/Bursts for testing. About 25 MB per frame.",
+                style = Type.Cap.copy(lineHeight = Type.Cap.fontSize * 1.4f),
+                color = Palette.Text2,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        androidx.compose.material3.Switch(
+            checked = on,
+            onCheckedChange = onChange,
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                checkedThumbColor = Palette.OnAccent,
+                checkedTrackColor = Palette.Accent,
+                uncheckedThumbColor = Palette.Text2,
+                uncheckedTrackColor = Palette.GlassFill,
+                uncheckedBorderColor = Palette.GlassBorder,
+            ),
+        )
+    }
 }
 
 @Composable

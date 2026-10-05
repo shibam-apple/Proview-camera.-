@@ -49,6 +49,21 @@ import app.proview.camera.ui.design.Palette
 import app.proview.camera.ui.design.Type
 import app.proview.camera.ui.design.glass
 import app.proview.camera.ui.design.spillBrush
+import app.proview.camera.night.FrameRole
+import app.proview.camera.night.GyroSample
+import app.proview.camera.night.MotionSensor
+import app.proview.camera.night.NightDetector
+import app.proview.camera.night.NightPlan
+import app.proview.camera.night.NightPlanner
+import app.proview.camera.night.SceneMotion
+import app.proview.camera.night.Steadiness
+import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -65,6 +80,7 @@ fun CameraScreen(
     latestPhoto: Uri?,
     onShot: (Shot) -> Unit,
     onOpenLibrary: () -> Unit,
+    backgroundScope: CoroutineScope,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -89,6 +105,24 @@ fun CameraScreen(
     var suggestionApplied by remember { mutableStateOf(false) }
     var remaining by remember { mutableIntStateOf(remainingShots(context)) }
 
+    // Night mode (docs/NIGHT_MODE.md): detection, steadiness, plan and capture progress.
+    val motionSensor = remember { MotionSensor(context.applicationContext) }
+    DisposableEffect(Unit) {
+        motionSensor.start()
+        onDispose { motionSensor.stop() }
+    }
+    val motion by motionSensor.reading.collectAsState()
+    val sceneMotion by camera.sceneMotion.collectAsState()
+    val detector = remember { NightDetector() }
+    var nightAuto by remember { mutableStateOf(false) }
+    var nightOff by remember { mutableStateOf(false) }
+    var nightProgress by remember { mutableStateOf<Float?>(null) }
+    var nightCountdown by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(live.meter) {
+        nightAuto = detector.update(live.meter, System.nanoTime())
+        if (!nightAuto) nightOff = false
+    }
+
     fun showToast(text: String) { toast = text; toastKey++ }
 
     // Zoom: rail position 0..n, mapped to focal length and then to a zoom ratio.
@@ -107,6 +141,13 @@ fun CameraScreen(
     val meterStops = settings.meterStops(live.meter, plan)
     val suggestion = suggestionFor(settings, live.meter)
 
+    val nightActive = settings.mode == Mode.AUTO && nightAuto && !nightOff
+    val subjectMoving = sceneMotion > SceneMotion.MOTION_THRESHOLD && motion.steadiness != Steadiness.HANDHELD
+    val nightPlan = live.meter?.takeIf { nightActive }?.let {
+        NightPlanner.plan(it, motion.steadiness, subjectMoving, facts.isoRange, facts.exposureRangeNs)
+    }
+    val capturingNight = nightProgress != null
+
     fun setMode(m: Mode) {
         if (m == settings.mode) return
         val next = if (m == Mode.MANUAL) settings.toManual(live.meter) else settings.copy(mode = m)
@@ -116,8 +157,65 @@ fun CameraScreen(
         if (!settings.mode.isPro && m.isPro) Haptics.heavy(view)
     }
 
+    fun shootNight(plan: NightPlan) {
+        busy = true
+        Haptics.heavy(view)
+        shots++
+        motionSensor.resetDrift()
+        motionSensor.startRecording()
+        nightProgress = 0f
+        val totalNs = plan.totalNs
+        val photo = plan.frames.first { it.role == FrameRole.PHOTO }
+        val dir = File(context.cacheDir, "bursts/" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()))
+        // Smooth countdown from sensor time; frame callbacks keep it honest.
+        val ticker = scope.launch {
+            val start = System.nanoTime()
+            while (true) {
+                val t = (System.nanoTime() - start).toFloat() / totalNs
+                nightProgress = maxOf(nightProgress ?: 0f, t.coerceAtMost(0.98f))
+                val left = ((1f - t) * totalNs / 1e9f).coerceAtLeast(0f)
+                nightCountdown = if (left > 0.05f) kotlin.math.ceil(left).toInt().toString() else null
+                delay(50)
+            }
+        }
+        scope.launch {
+            val result = runCatching {
+                camera.captureNight(plan, dir) { done, total -> nightProgress = maxOf(nightProgress ?: 0f, done.toFloat() / total) }
+            }
+            ticker.cancel()
+            val gyro = motionSensor.stopRecording()
+            nightProgress = null
+            nightCountdown = null
+            vf.blinkKey++
+            result.onSuccess { burst ->
+                val jpeg = burst.photoJpeg
+                if (jpeg != null) {
+                    runCatching { camera.saveJpeg(jpeg) }
+                        .onSuccess { uri -> onShot(Shot(uri, photo.iso, photo.exposureNs)); remaining = remainingShots(context) }
+                        .onFailure { showToast("Couldn't save the photo") }
+                } else {
+                    showToast("Night photo failed")
+                }
+                val keep = BurstPrefs.saveBursts(context)
+                backgroundScope.launch(Dispatchers.IO) {
+                    runCatching {
+                        File(burst.dir, "gyro.json").writeText(gyroJson(gyro))
+                        if (keep) exportBurst(context.applicationContext, burst.dir)
+                    }
+                    burst.dir.deleteRecursively()
+                }
+                if (keep) showToast("Burst saved · ${burst.rawFrames} RAW frames")
+            }.onFailure {
+                showToast("Night capture failed: ${it.message ?: it.javaClass.simpleName}")
+                dir.deleteRecursively()
+            }
+            busy = false
+        }
+    }
+
     fun shoot() {
         if (busy) return
+        nightPlan?.let { shootNight(it); return }
         busy = true
         Haptics.heavy(view)
         vf.blinkKey++
@@ -210,7 +308,14 @@ fun CameraScreen(
             },
             modifier = Modifier.then(ds.at(12f, 94f, 366f, vfH)),
         ) {
-            if (suggestion != null) {
+            if (nightPlan != null || capturingNight) {
+                SuggestionLine(
+                    text = if (capturingNight) "Hold still" else "Night · hold still for ${kotlin.math.ceil(nightPlan!!.totalSeconds).toInt()} s",
+                    applied = false,
+                    onTap = null,
+                    modifier = Modifier.then(ds.at(12f, 8f, 342f, 44f)),
+                )
+            } else if (suggestion != null) {
                 SuggestionLine(
                     text = suggestion.text,
                     applied = suggestionApplied,
@@ -227,7 +332,18 @@ fun CameraScreen(
             }
             Toast(toast, toastKey, Modifier.then(ds.at(0f, 56f, 366f, 30f)))
 
-            if (!pro) {
+            if (capturingNight) {
+                CapturingVeil()
+                NightCrosshair(motion)
+            }
+            if (!pro && nightAuto && !capturingNight) {
+                NightChip(
+                    active = nightActive,
+                    seconds = nightPlan?.totalSeconds ?: 0f,
+                    onToggle = { nightOff = !nightOff; Haptics.tap(view) },
+                    modifier = Modifier.then(ds.at(14f, vfH - 46f, 200f, 30f)),
+                )
+            } else if (!pro && !capturingNight) {
                 AutoInfoRow(
                     scene = sceneLabel(live.meter, settings.aeAfLocked),
                     remaining = remaining,
@@ -279,7 +395,14 @@ fun CameraScreen(
 
         LibraryThumb(latestPhoto, onOpenLibrary, Modifier.then(ds.at(28f, 752f, 56f, 56f)))
         TickRing(shots * 30f + modeChanges * 24f, Modifier.then(ds.at(145f, 730f, 100f, 100f)))
-        ShutterButton(!busy, ::shoot, Modifier.then(ds.at(151f, 736f, 88f, 88f)))
+        ShutterButton(
+            enabled = !busy,
+            onShoot = ::shoot,
+            modifier = Modifier.then(ds.at(151f, 736f, 88f, 88f)),
+            progress = nightProgress,
+            label = nightCountdown,
+            night = nightActive,
+        )
 
         slots.forEachIndexed { k, sc ->
             val on = when (sc) {
@@ -326,6 +449,12 @@ fun CameraScreen(
             )
         }
     }
+}
+
+private fun gyroJson(samples: List<GyroSample>): String {
+    val arr = org.json.JSONArray()
+    samples.forEach { arr.put(org.json.JSONArray().put(it.timestampNs).put(it.x.toDouble()).put(it.y.toDouble()).put(it.z.toDouble())) }
+    return org.json.JSONObject().put("format", "[timestampNs, x, y, z] rad/s").put("samples", arr).toString()
 }
 
 private class Suggestion(val text: String, val apply: ((CameraSettings) -> CameraSettings)?)

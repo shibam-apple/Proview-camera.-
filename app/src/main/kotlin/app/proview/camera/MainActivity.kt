@@ -43,6 +43,8 @@ import app.proview.camera.ui.design.Palette
 import app.proview.camera.ui.design.Type
 import app.proview.camera.ui.detail.DetailScreen
 import app.proview.camera.ui.library.LibraryScreen
+import androidx.lifecycle.lifecycleScope
+import app.proview.camera.ui.camera.BurstPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -105,6 +107,7 @@ class MainActivity : ComponentActivity() {
                         photos = listOf(record) + photos
                     },
                     onOpenLibrary = { screen = Screen.LIBRARY },
+                    backgroundScope = lifecycleScope,
                 )
             } else {
                 PermissionScreen { request.launch(Manifest.permission.CAMERA) }
@@ -143,7 +146,13 @@ class MainActivity : ComponentActivity() {
                 val report by produceState<DeviceReport?>(initialValue = null) {
                     value = withContext(Dispatchers.Default) { DeviceProbe(applicationContext).probe() }
                 }
-                DeviceCheckScreen(report = report, onShare = { report?.let(::shareReport) })
+                var saveBursts by remember { mutableStateOf(BurstPrefs.saveBursts(this@MainActivity)) }
+                DeviceCheckScreen(
+                    report = report,
+                    onShare = { report?.let(::shareReport) },
+                    saveBursts = saveBursts,
+                    onSaveBursts = { on -> saveBursts = on; BurstPrefs.setSaveBursts(this@MainActivity, on) },
+                )
             }
         }
     }

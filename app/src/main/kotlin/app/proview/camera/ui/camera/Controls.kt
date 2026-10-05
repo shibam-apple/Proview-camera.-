@@ -300,8 +300,19 @@ fun TickRing(rotation: Float, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The shutter. In night mode [progress] (0..1) draws an accent arc that fills while the burst is
+ * captured, and [label] shows the countdown in the disc.
+ */
 @Composable
-fun ShutterButton(enabled: Boolean, onShoot: () -> Unit, modifier: Modifier = Modifier) {
+fun ShutterButton(
+    enabled: Boolean,
+    onShoot: () -> Unit,
+    modifier: Modifier = Modifier,
+    progress: Float? = null,
+    label: String? = null,
+    night: Boolean = false,
+) {
     val ds = LocalDesign.current
     val view = LocalView.current
     var pressed by remember { mutableStateOf(false) }
@@ -324,6 +335,18 @@ fun ShutterButton(enabled: Boolean, onShoot: () -> Unit, modifier: Modifier = Mo
         Canvas(Modifier.fillMaxSize().scale(ring)) {
             val k = size.width / 88f
             drawCircle(Color(0xC7F5F5F7), radius = 42.5f * k, style = Stroke(width = 1.5f * k))
+            if (progress != null) {
+                val r = 42.5f * k
+                drawArc(
+                    Palette.Accent,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress.coerceIn(0f, 1f),
+                    useCenter = false,
+                    topLeft = Offset(center.x - r, center.y - r),
+                    size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
+                    style = Stroke(width = 3f * k, cap = StrokeCap.Round),
+                )
+            }
         }
         Box(
             Modifier
@@ -331,7 +354,13 @@ fun ShutterButton(enabled: Boolean, onShoot: () -> Unit, modifier: Modifier = Mo
                 .padding(ds.d(9))
                 .scale(disc)
                 .background(Palette.Accent, CircleShape),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                label != null -> Text(label, style = ds.text(Type.Disp, 30f), color = Palette.OnAccent)
+                night -> SvgIcon(MOON_PATH, ds.d(26), Palette.OnAccent, filled = true)
+            }
+        }
     }
 }
 

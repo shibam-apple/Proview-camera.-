@@ -31,6 +31,16 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import app.proview.camera.night.BurstResult
+import app.proview.camera.night.LockedState
+import app.proview.camera.night.NightPlan
+import app.proview.camera.night.RawBurstCapture
+import app.proview.camera.night.SceneMotion
+import android.hardware.camera2.params.ColorSpaceTransform
+import android.hardware.camera2.params.RggbChannelVector
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +70,9 @@ data class CameraFacts(
     val maxZoomRatio: Float = 1f,
     /** 35 mm-equivalent focal length at 1x zoom. */
     val baseFocalMm: Int = 26,
+    val exposureRangeNs: LongRange = 100_000L..1_000_000_000L,
+    /** Degrees the sensor image is rotated from the phone held upright (JPEG/DNG orientation). */
+    val sensorOrientation: Int = 90,
 )
 
 /**
@@ -88,11 +101,28 @@ class ProCamera(private val context: Context) {
     private var settings = CameraSettings()
     private var lastApplied: Pair<ExposurePlan, CameraSettings>? = null
 
+    private val _sceneMotion = MutableStateFlow(0f)
+
+    /** Frame-to-frame scene change, mean-removed (see SceneMotion); high when subjects move. */
+    val sceneMotion: StateFlow<Float> = _sceneMotion.asStateFlow()
+    private var previousThumb: FloatArray? = null
+
+    // Last focus and colour state from the preview, carried into a night burst.
+    @Volatile private var lastFocusDiopters: Float? = null
+    @Volatile private var lastAwbGains: RggbChannelVector? = null
+    @Volatile private var lastColorTransform: ColorSpaceTransform? = null
+
+    private var boundOwner: LifecycleOwner? = null
+    private var boundView: PreviewView? = null
+
     private val captureCallback = object : CameraCaptureSession.CaptureCallback() {
         override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
             val iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
             val exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
             val autoExposure = result.get(CaptureResult.CONTROL_AE_MODE) != CaptureResult.CONTROL_AE_MODE_OFF
+            lastFocusDiopters = result.get(CaptureResult.LENS_FOCUS_DISTANCE)
+            lastAwbGains = result.get(CaptureResult.COLOR_CORRECTION_GAINS)
+            lastColorTransform = result.get(CaptureResult.COLOR_CORRECTION_TRANSFORM)
             val prev = _live.value
             _live.value = LiveReadout(
                 iso = iso,
@@ -103,6 +133,8 @@ class ProCamera(private val context: Context) {
     }
 
     fun bind(owner: LifecycleOwner, previewView: PreviewView) {
+        boundOwner = owner
+        boundView = previewView
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
             val p = future.get()
@@ -135,7 +167,11 @@ class ProCamera(private val context: Context) {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             analysis.setAnalyzer(analysisExecutor) { image ->
-                _histogram.value = Histogram.luma(image.planes[0].buffer, image.width, image.height, image.planes[0].rowStride)
+                val y = image.planes[0]
+                _histogram.value = Histogram.luma(y.buffer, image.width, image.height, y.rowStride)
+                val thumb = Histogram.thumbnail(y.buffer, image.width, image.height, y.rowStride)
+                previousThumb?.let { _sceneMotion.value = SceneMotion.difference(it, thumb) }
+                previousThumb = thumb
                 image.close()
             }
 
@@ -161,6 +197,8 @@ class ProCamera(private val context: Context) {
         val focal = info.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.minOrNull()
         val size = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
         val step = cam.cameraInfo.exposureState.exposureCompensationStep
+        val exposure = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        val orientation = info.getCameraCharacteristic(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90
         val baseFocal = if (focal != null && size != null) {
             val diagonal = Math.hypot(size.width.toDouble(), size.height.toDouble())
             (focal * 43.27 / diagonal).roundToInt()
@@ -171,6 +209,8 @@ class ProCamera(private val context: Context) {
             evStepThirds = if (step.denominator != 0) step.toFloat() * 3f else 1f,
             maxZoomRatio = cam.cameraInfo.zoomState.value?.maxZoomRatio ?: 1f,
             baseFocalMm = baseFocal,
+            exposureRangeNs = exposure?.let { it.lower..it.upper } ?: (100_000L..1_000_000_000L),
+            sensorOrientation = orientation,
         )
     }
 
@@ -268,6 +308,39 @@ class ProCamera(private val context: Context) {
                 cont.resumeWithException(exception)
             }
         })
+    }
+
+    /**
+     * Night capture (docs/NIGHT_MODE.md): frees the camera from CameraX, runs [plan] as one
+     * Camera2 RAW burst into [outDir], then rebinds the preview. Returns the burst on disk and
+     * the PHOTO frame's JPEG.
+     */
+    suspend fun captureNight(plan: NightPlan, outDir: File, onFrame: (Int, Int) -> Unit): BurstResult {
+        val locked = LockedState(lastFocusDiopters, lastAwbGains, lastColorTransform)
+        val owner = boundOwner
+        val view = boundView
+        unbind()
+        try {
+            return RawBurstCapture(context).capture(plan, locked, outDir, _facts.value.sensorOrientation, onFrame)
+        } finally {
+            if (owner != null && view != null) withContext(Dispatchers.Main) { bind(owner, view) }
+        }
+    }
+
+    /** Saves camera-encoded JPEG bytes to Pictures/Proview, like [capture]. */
+    @SuppressLint("InlinedApi")
+    suspend fun saveJpeg(bytes: ByteArray): Uri = withContext(Dispatchers.IO) {
+        val name = "PRV_" + SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date()) + "_NIGHT"
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) put(MediaStore.MediaColumns.RELATIVE_PATH, ALBUM_PATH)
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("MediaStore insert failed")
+        resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IllegalStateException("Couldn't open $uri")
+        uri
     }
 
     companion object {
