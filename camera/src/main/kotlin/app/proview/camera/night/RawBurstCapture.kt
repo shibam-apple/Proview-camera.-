@@ -66,6 +66,8 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
         locked: LockedState,
         outDir: File,
         jpegOrientation: Int,
+        /** Also write DNGs (for exporting the burst); the merge only needs the .raw16 frames. */
+        writeDng: Boolean,
         onFrame: (done: Int, total: Int) -> Unit,
     ): BurstResult {
         val manager = context.getSystemService(CameraManager::class.java)
@@ -74,6 +76,7 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
         val handler = Handler(thread.looper)
         val writer = Executors.newSingleThreadExecutor()
         outDir.mkdirs()
+        File(outDir, "calibration.json").writeText(calibrationJson(chars).toString(2))
 
         val rawSize = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
             .getOutputSizes(ImageFormat.RAW_SENSOR).maxBy { it.width.toLong() * it.height }
@@ -96,6 +99,7 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
             val total = plan.frames.size
             val done = AtomicInteger(0)
             val results = ConcurrentHashMap<Long, TotalCaptureResult>()
+            val roles = ConcurrentHashMap<Long, FrameRole>()
             val rawImages = ConcurrentHashMap<Long, Image>()
             val frameMeta = JSONArray()
             val written = CompletableDeferred<Unit>()
@@ -108,15 +112,23 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
                 val result = results[ts] ?: return
                 val image = rawImages.remove(ts) ?: return
                 results.remove(ts)
+                val role = roles.remove(ts) ?: FrameRole.BASE
                 writer.execute {
                     val index = rawWritten.getAndIncrement()
                     try {
-                        val file = File(outDir, "frame_%02d.dng".format(index))
-                        DngCreator(chars, result).use { dng ->
-                            dng.setOrientation(exifOrientation(jpegOrientation))
-                            FileOutputStream(file).use { dng.writeImage(it, image) }
+                        val rawFile = File(outDir, "frame_%02d.raw16".format(index))
+                        writeRaw16(image, rawFile)
+                        if (writeDng) {
+                            DngCreator(chars, result).use { dng ->
+                                dng.setOrientation(exifOrientation(jpegOrientation))
+                                FileOutputStream(File(outDir, "frame_%02d.dng".format(index))).use { dng.writeImage(it, image) }
+                            }
                         }
-                        synchronized(frameMeta) { frameMeta.put(frameJson(index, file.name, result)) }
+                        val meta = frameJson(index, rawFile.name, result)
+                            .put("role", role.name)
+                            .put("width", image.width)
+                            .put("height", image.height)
+                        synchronized(frameMeta) { frameMeta.put(meta) }
                     } catch (t: Throwable) {
                         failures.incrementAndGet()
                     } finally {
@@ -184,6 +196,7 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
                     val spec = request.tag as? FrameSpec
                     if (spec != null && spec.role != FrameRole.PHOTO) {
                         val ts = result.get(CaptureResult.SENSOR_TIMESTAMP) ?: return
+                        roles[ts] = spec.role
                         results[ts] = result
                         tryWrite(ts)
                     }
@@ -309,7 +322,54 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
         r.get(CaptureResult.COLOR_CORRECTION_GAINS)?.let { g ->
             o.put("awbGains", JSONArray().put(g.red.toDouble()).put(g.greenEven.toDouble()).put(g.greenOdd.toDouble()).put(g.blue.toDouble()))
         }
-        o.put("hasLensShadingMap", r.get(CaptureResult.STATISTICS_LENS_SHADING_CORRECTION_MAP) != null)
+        r.get(CaptureResult.STATISTICS_LENS_SHADING_CORRECTION_MAP)?.let { map ->
+            val gains = JSONArray()
+            for (row in 0 until map.rowCount) for (col in 0 until map.columnCount) for (ch in 0 until 4) {
+                gains.put(map.getGainFactor(ch, col, row).toDouble())
+            }
+            o.put("shadingMap", JSONObject().put("columns", map.columnCount).put("rows", map.rowCount).put("gains", gains))
+        }
+        return o
+    }
+
+    /** Copies a RAW_SENSOR image (16-bit, little-endian) to a plain file, row by row. */
+    private fun writeRaw16(image: Image, file: File) {
+        val plane = image.planes[0]
+        // Work on a duplicate so the image's own buffer position is untouched for DngCreator.
+        val buf = plane.buffer.duplicate()
+        val rowBytes = image.width * 2
+        val row = ByteArray(rowBytes)
+        java.io.BufferedOutputStream(FileOutputStream(file), 1 shl 20).use { out ->
+            for (y in 0 until image.height) {
+                buf.position(y * plane.rowStride)
+                buf.get(row, 0, rowBytes)
+                out.write(row)
+            }
+        }
+    }
+
+    /** The sensor's static calibration: CFA, levels and the DNG colour matrices. */
+    private fun calibrationJson(c: CameraCharacteristics): JSONObject {
+        fun matrix(t: ColorSpaceTransform?): JSONArray? = t?.let {
+            JSONArray().also { a -> for (row in 0..2) for (col in 0..2) a.put(it.getElement(col, row).toDouble()) }
+        }
+        val cfa = c.get(CameraCharacteristics.SENSOR_INFO_COLOR_FILTER_ARRANGEMENT) ?: 0
+        val o = JSONObject()
+            .put("cfa", cfa)
+            .put("whiteLevel", c.get(CameraCharacteristics.SENSOR_INFO_WHITE_LEVEL) ?: 1023)
+            .put("illuminant1", c.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1) ?: 21)
+            .put("illuminant2", c.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt() ?: 17)
+            .put("sensorOrientation", c.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90)
+        c.get(CameraCharacteristics.SENSOR_BLACK_LEVEL_PATTERN)?.let { p ->
+            // By 2x2 position, row-major: (0,0), (1,0), (0,1), (1,1).
+            o.put("blackLevelByPosition", JSONArray().put(p.getOffsetForIndex(0, 0)).put(p.getOffsetForIndex(1, 0)).put(p.getOffsetForIndex(0, 1)).put(p.getOffsetForIndex(1, 1)))
+        }
+        matrix(c.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1))?.let { o.put("colorMatrix1", it) }
+        matrix(c.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2))?.let { o.put("colorMatrix2", it) }
+        matrix(c.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX1))?.let { o.put("forwardMatrix1", it) }
+        matrix(c.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX2))?.let { o.put("forwardMatrix2", it) }
+        matrix(c.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM1))?.let { o.put("calibration1", it) }
+        matrix(c.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM2))?.let { o.put("calibration2", it) }
         return o
     }
 

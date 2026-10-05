@@ -55,6 +55,10 @@ import app.proview.camera.night.MotionSensor
 import app.proview.camera.night.NightDetector
 import app.proview.camera.night.NightPlan
 import app.proview.camera.night.NightPlanner
+import app.proview.camera.night.NightProcessor
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import app.proview.camera.night.SceneMotion
 import app.proview.camera.night.Steadiness
 import androidx.compose.runtime.DisposableEffect
@@ -118,6 +122,7 @@ fun CameraScreen(
     var nightOff by remember { mutableStateOf(false) }
     var nightProgress by remember { mutableStateOf<Float?>(null) }
     var nightCountdown by remember { mutableStateOf<String?>(null) }
+    var developing by remember { mutableIntStateOf(0) }
     LaunchedEffect(live.meter) {
         nightAuto = detector.update(live.meter, System.nanoTime())
         if (!nightAuto) nightOff = false
@@ -180,7 +185,7 @@ fun CameraScreen(
         }
         scope.launch {
             val result = runCatching {
-                camera.captureNight(plan, dir) { done, total -> nightProgress = maxOf(nightProgress ?: 0f, done.toFloat() / total) }
+                camera.captureNight(plan, dir, writeDng = BurstPrefs.saveBursts(context)) { done, total -> nightProgress = maxOf(nightProgress ?: 0f, done.toFloat() / total) }
             }
             ticker.cancel()
             val gyro = motionSensor.stopRecording()
@@ -188,23 +193,31 @@ fun CameraScreen(
             nightCountdown = null
             vf.blinkKey++
             result.onSuccess { burst ->
-                val jpeg = burst.photoJpeg
-                if (jpeg != null) {
-                    runCatching { camera.saveJpeg(jpeg) }
-                        .onSuccess { uri -> onShot(Shot(uri, photo.iso, photo.exposureNs)); remaining = remainingShots(context) }
-                        .onFailure { showToast("Couldn't save the photo") }
-                } else {
-                    showToast("Night photo failed")
-                }
                 val keep = BurstPrefs.saveBursts(context)
-                backgroundScope.launch(Dispatchers.IO) {
-                    runCatching {
-                        File(burst.dir, "gyro.json").writeText(gyroJson(gyro))
-                        if (keep) exportBurst(context.applicationContext, burst.dir)
+                developing++
+                backgroundScope.launch(Dispatchers.Default) {
+                    runCatching { File(burst.dir, "gyro.json").writeText(gyroJson(gyro)) }
+                    // Develop with the Proview pipeline; fall back to the camera's own JPEG.
+                    val developed = developLock.withLock { runCatching { NightProcessor.develop(burst.dir) } }
+                    val jpeg = developed.getOrNull()?.first ?: burst.photoJpeg
+                    val saved = jpeg?.let { bytes -> runCatching { camera.saveJpeg(bytes) }.getOrNull() }
+                    withContext(Dispatchers.Main) {
+                        developing--
+                        if (saved != null) {
+                            onShot(Shot(saved, photo.iso, photo.exposureNs))
+                            remaining = remainingShots(context)
+                        }
+                        val report = developed.getOrNull()?.second
+                        when {
+                            saved == null -> showToast("Night photo failed")
+                            report == null -> showToast("Develop failed: ${developed.exceptionOrNull()?.message ?: "error"} · camera JPEG saved")
+                            else -> showToast("Night · ${report.framesMerged} frames · %.1f s".format(report.millis / 1000f))
+                        }
                     }
+                    runCatching { if (keep) exportBurst(context.applicationContext, burst.dir) }
                     burst.dir.deleteRecursively()
+                    if (keep) withContext(Dispatchers.Main) { showToast("Burst saved · ${burst.rawFrames} RAW frames") }
                 }
-                if (keep) showToast("Burst saved · ${burst.rawFrames} RAW frames")
             }.onFailure {
                 showToast("Night capture failed: ${it.message ?: it.javaClass.simpleName}")
                 dir.deleteRecursively()
@@ -331,6 +344,9 @@ fun CameraScreen(
                 )
             }
             Toast(toast, toastKey, Modifier.then(ds.at(0f, 56f, 366f, 30f)))
+            if (developing > 0) {
+                DevelopingChip(developing, Modifier.then(ds.at(12f, 92f, 342f, 30f)))
+            }
 
             if (capturingNight) {
                 CapturingVeil()
@@ -450,6 +466,9 @@ fun CameraScreen(
         }
     }
 }
+
+/** One burst develops at a time: each needs a few hundred MB of working memory. */
+private val developLock = Mutex()
 
 private fun gyroJson(samples: List<GyroSample>): String {
     val arr = org.json.JSONArray()

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,6 +76,33 @@ fun NightChip(active: Boolean, seconds: Float, onToggle: () -> Unit, modifier: M
             style = ds.text(Type.Cap),
             color = if (active) Palette.Text1 else Palette.Text2,
         )
+    }
+}
+
+/** "Developing night photo…" while bursts are processed in the background. */
+@Composable
+fun DevelopingChip(count: Int, modifier: Modifier = Modifier) {
+    val ds = LocalDesign.current
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Row(
+            Modifier
+                .height(ds.d(30))
+                .glass(RoundedCornerShape(ds.d(15)))
+                .padding(horizontal = ds.d(13)),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(ds.d(7)),
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(ds.d(12)),
+                color = Palette.Accent,
+                strokeWidth = ds.d(1.5f),
+            )
+            Text(
+                if (count > 1) "Developing $count night photos…" else "Developing night photo…",
+                style = ds.text(Type.Cap),
+                color = Palette.Text1,
+            )
+        }
     }
 }
 

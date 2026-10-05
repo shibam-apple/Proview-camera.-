@@ -25,6 +25,7 @@ kotlin {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    api(libs.proview.pipeline.ref)
     api(libs.camerax.core)
     api(libs.camerax.camera2)
     api(libs.camerax.lifecycle)

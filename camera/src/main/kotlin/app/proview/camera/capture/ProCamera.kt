@@ -315,13 +315,13 @@ class ProCamera(private val context: Context) {
      * Camera2 RAW burst into [outDir], then rebinds the preview. Returns the burst on disk and
      * the PHOTO frame's JPEG.
      */
-    suspend fun captureNight(plan: NightPlan, outDir: File, onFrame: (Int, Int) -> Unit): BurstResult {
+    suspend fun captureNight(plan: NightPlan, outDir: File, writeDng: Boolean, onFrame: (Int, Int) -> Unit): BurstResult {
         val locked = LockedState(lastFocusDiopters, lastAwbGains, lastColorTransform)
         val owner = boundOwner
         val view = boundView
         unbind()
         try {
-            return RawBurstCapture(context).capture(plan, locked, outDir, _facts.value.sensorOrientation, onFrame)
+            return RawBurstCapture(context).capture(plan, locked, outDir, _facts.value.sensorOrientation, writeDng, onFrame)
         } finally {
             if (owner != null && view != null) withContext(Dispatchers.Main) { bind(owner, view) }
         }

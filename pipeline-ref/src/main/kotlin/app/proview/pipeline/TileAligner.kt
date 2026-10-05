@@ -79,7 +79,8 @@ class TileAligner(
         val tilesY = maxOf(1, (ref.height - size) / stride + 1)
         val field = AlignmentField(tilesX, tilesY, size, stride)
 
-        for (ty in 0 until tilesY) {
+        // Tile rows are independent: spread them over all cores.
+        java.util.stream.IntStream.range(0, tilesY).parallel().forEach { ty ->
             for (tx in 0 until tilesX) {
                 val x0 = tx * stride
                 val y0 = ty * stride
