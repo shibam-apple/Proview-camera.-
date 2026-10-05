@@ -191,7 +191,7 @@ Every item must pass on the test phone:
 - **UI:** every screen passes the screenshot tests against the design, and every gesture and
   animation in `UI_SPEC.md` works.
 - **Algorithm:** every pipeline stage in §5 is on in Auto; blind tests prefer Proview over the
-  stock OnePlus camera, or rate it equal, on the benchmark scenes; colour ΔE target met (§6).
+  stock OnePlus camera, or rate it equal,, on the benchmark scenes; colour ΔE target met (§6).
 - **Speed:** every budget in §7 met.
 - **Stability:** no crashes in a 500-shot soak test; no golden-test regressions.
 
@@ -199,13 +199,29 @@ Every item must pass on the test phone:
 
 ## 11. Test phone & references
 
-- **Test phone:** the user's **OnePlus**. Speed budgets and first tuning target this phone.
-- **Colour reference:** OnePlus phones from the 9 series onwards are co-developed with
-  Hasselblad, so the test phone's stock camera can also provide Hasselblad-colour reference shots.
-- **Quality reference:** Vivo X200 shots for the benchmark set (source still to be found).
-- **Repo visibility:** public for now.
+### Test phone: OnePlus with Snapdragon 855 Plus (OnePlus 7T / 7T Pro, 2019)
+- **Chip:** Snapdragon 855+. CPU Kryo 485, GPU **Adreno 640** (Vulkan 1.1, used for the pipeline),
+  Hexagon 690 DSP (ML via LiteRT delegates). It's a 2019 chip, so speed budgets (§7) are set
+  and measured on it. If it meets them, newer phones will too.
+- **Main camera:** 48 MP Sony IMX586 quad-Bayer sensor, binned to 12 MP. Camera2 is expected to
+  report `LEVEL_3` with RAW on the main camera (**Tier A**); to be confirmed on the device.
+- **Other lenses:** ultra-wide, plus a 2× (7T) or 3× (7T Pro) telephoto. Older OxygenOS builds
+  hid these from third-party apps; if they're hidden, the focal rail uses the main camera with
+  super-resolution crop.
+- **Glass blur** in the UI needs Android 12 (OxygenOS 12). On Android 11 or earlier the
+  translucent fallback is used (UI_SPEC §7).
+
+### Reference photos (public samples)
+- **Quality reference:** public **Vivo X200** sample photos.
+- **Colour reference:** public sample photos from Hasselblad-colour phones (OnePlus 9 series
+  onwards, OPPO Find X series). The 7T/7T Pro predates the Hasselblad partnership, so its own
+  camera isn't a colour reference.
+- **Baseline:** shots from the test phone's stock OnePlus camera.
+- Public samples can't be reshot on the same scenes, so the benchmark compares by **scene type**
+  (daylight, backlight, indoor, night, portrait, landscape, skin tones) using no-reference metrics
+  (noise, dynamic range, sharpness, colour statistics) and blind ratings. On-device golden tests
+  against our own bursts stay exact.
 
 ## 12. Open questions
 
-1. The exact OnePlus **model**. It decides which lenses, RAW support and Hasselblad colour we get.
-2. A source of **Vivo X200** reference shots: borrowing a phone, or the same scenes from public samples.
+1. **7T or 7T Pro**, and which Android/OxygenOS version is installed?
