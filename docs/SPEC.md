@@ -171,22 +171,41 @@ How:
 
 ## 10. Milestones
 
-| | Deliverable |
+**Version 1.0 ships with both the full algorithm and the full UI working well.** There is no
+public release of a half-finished app. The milestones below are internal builds, each installable
+from CI as a debug APK on the test phone, and v1.0 is released only when the release gate passes.
+
+| | Internal build |
 |---|---|
 | **M0** | This spec; module skeleton; CI producing a debug APK |
 | **M1** | UI built to `UI_SPEC.md`; ZSL capture; single-frame photos saved |
 | **M2** | Burst align + merge (reference implementation) with golden tests |
 | **M3** | GPU port; speed budgets met on the test phone |
-| **M4** | Colour science v1 + looks; first benchmark round |
+| **M4** | Colour science + looks; first benchmark round |
 | **M5** | ML denoise, night mode, Moment best-frame |
 | **M6** | Simulated aperture (bokeh), super-resolution zoom |
 | **M7** | Tuning across device tiers against the benchmark set |
 
+### v1.0 release gate
+Every item must pass on the test phone:
+- **UI:** every screen passes the screenshot tests against the design, and every gesture and
+  animation in `UI_SPEC.md` works.
+- **Algorithm:** every pipeline stage in §5 is on in Auto; blind tests prefer Proview over the
+  stock OnePlus camera, or rate it equal, on the benchmark scenes; colour ΔE target met (§6).
+- **Speed:** every budget in §7 met.
+- **Stability:** no crashes in a 500-shot soak test; no golden-test regressions.
+
 ---
 
-## 11. Open questions
+## 11. Test phone & references
 
-1. Which phone(s) will we test on first? This sets the speed budgets and initial tuning.
-2. Do you have access to a **Vivo X200** and a **Hasselblad-colour phone** (e.g. OnePlus/OPPO)
-   for reference shots?
-3. Should the repo stay **public**?
+- **Test phone:** the user's **OnePlus**. Speed budgets and first tuning target this phone.
+- **Colour reference:** OnePlus phones from the 9 series onwards are co-developed with
+  Hasselblad, so the test phone's stock camera can also provide Hasselblad-colour reference shots.
+- **Quality reference:** Vivo X200 shots for the benchmark set (source still to be found).
+- **Repo visibility:** public for now.
+
+## 12. Open questions
+
+1. The exact OnePlus **model**. It decides which lenses, RAW support and Hasselblad colour we get.
+2. A source of **Vivo X200** reference shots: borrowing a phone, or the same scenes from public samples.
