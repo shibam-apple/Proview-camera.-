@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -39,6 +42,24 @@ jobs:
           name: proview-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # Public download with no GitHub sign-in needed. The newest build is always at
+      # https://github.com/shibam-apple/Proview-camera.-/releases/latest/download/proview-debug.apk
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cp app/build/outputs/apk/debug/app-debug.apk proview-debug.apk
+
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Proview build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: proview-debug.apk
+          body: |
+            Debug build from ${{ github.sha }}.
+            Install `proview-debug.apk` on your phone (allow "Install unknown apps" if asked).
 
       - name: Upload test reports
         if: failure()

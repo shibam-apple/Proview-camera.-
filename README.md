@@ -7,9 +7,9 @@ to a flagship Vivo X200, on as many Android phones as possible.
 **Status:** milestone M0. Project skeleton, a device-check screen and the first pipeline stage (tile alignment) with tests.
 
 ## Get the app
-Every push to `main` builds a debug APK. Open the latest run under
-[Actions → Build](https://github.com/shibam-apple/Proview-camera.-/actions/workflows/build.yml),
-download the `proview-debug-…` artifact, unzip it and install the `.apk` on your phone.
+**[Download the latest build (APK)](https://github.com/shibam-apple/Proview-camera.-/releases/latest/download/proview-debug.apk)**.
+No GitHub sign-in is needed. Every push to `main` publishes a new build to
+[Releases](https://github.com/shibam-apple/Proview-camera.-/releases).
 
 ## Build it yourself
 ```sh
