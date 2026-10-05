@@ -1,6 +1,6 @@
 # Night mode
 
-Status: **N1 in progress** · Target device: OnePlus 7T Pro (Snapdragon 855+, IMX586 12 MP binned RAW)
+Status: **N2 in progress** · Target device: OnePlus 7T Pro (Snapdragon 855+, IMX586 12 MP binned RAW)
 
 ## Goal
 Night photos with the character of Hasselblad night photography (user reference: a Hasselblad
@@ -18,7 +18,7 @@ Noise is close: the phone's brighter lens plus ~15 merged frames makes up most o
 area gap. Resolution and depth of field of a 100 MP medium-format camera are not reachable.
 
 ## User experience
-- In Auto, when the scene is dark for 1 s, the scene chip turns into **"Night · N s"** with a
+- In Auto, when the scene is dark for 0.7 s, the scene chip turns into **"Night · N s"** with a
   moon, and the suggestion line says **"Night · hold still for N s"**. Tap the chip to turn night
   off for this scene (it re-arms when the scene gets bright again).
 - Press the shutter: the accent arc around the shutter fills, the disc counts down, the
@@ -27,8 +27,9 @@ area gap. Resolution and depth of field of a 100 MP medium-format camera are not
 
 ## Algorithm
 1. **Plan** (`camera/.../night/NightPlanner.kt`)
-   - Night on when auto-exposure needs ≥ ISO 1600 at 1/30 s (or equivalent ISO × time);
-     off below 60% of that; 1 s dwell both ways.
+   - Night on when auto-exposure needs ≥ ISO 800 at 1/25 s (or equivalent ISO × time, judged
+     without the user's EV bias); off below half of that; 0.7 s dwell both ways. The detector
+     runs on a clock, so a steady, unchanging dark scene still switches it on.
    - Steadiness from gyroscope RMS angular speed: tripod < 0.008 rad/s, steady < 0.05 rad/s.
    - Longest frame: 1 s (tripod), 1/3 s (steady, OIS), 1/8 s (handheld), 1/15 s if the scene moves.
    - Frames = budget ÷ frame time, clamped to 6–15. Base frames sit 0.7 EV under the metered

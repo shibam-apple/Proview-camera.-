@@ -42,14 +42,14 @@ data class NightPlan(val frames: List<FrameSpec>, val steadiness: Steadiness, va
 
 object NightPlanner {
     /**
-     * Night switches on when auto-exposure needs at least ISO 1600 at 1/30 s (or the
-     * equivalent ISO x time), and off again below 60% of that, so it doesn't flicker.
+     * Night switches on when auto-exposure needs at least ISO 800 at 1/25 s (or the equivalent
+     * ISO x time; a dim living room), and off again below half of that, so it doesn't flicker.
      */
-    const val ENTER_PRODUCT = 1600.0 * 33_333_333L
-    const val EXIT_PRODUCT = ENTER_PRODUCT * 0.6
+    const val ENTER_PRODUCT = 800.0 * 40_000_000L
+    const val EXIT_PRODUCT = ENTER_PRODUCT * 0.5
 
     /** The scene must stay dark (or bright) this long before night mode changes state. */
-    const val DWELL_NS = 1_000_000_000L
+    const val DWELL_NS = 700_000_000L
 
     /** Total sensor time: 2.5 s handheld (agreed with the user), 6 s on a tripod. */
     const val HANDHELD_BUDGET_NS = 2_500_000_000L

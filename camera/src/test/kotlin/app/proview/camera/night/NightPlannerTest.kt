@@ -81,13 +81,32 @@ class NightPlannerTest {
     }
 
     @Test
-    fun detectorNeedsADarkSceneForASecond() {
+    fun detectorNeedsADarkSceneForTheDwellTime() {
         val d = NightDetector()
         val dark = Meter(3200, 66_666_667L)
 
         assertFalse(d.update(dark, 0))
         assertFalse(d.update(dark, 500_000_000))
-        assertTrue(d.update(dark, 1_000_000_000))
+        assertTrue(d.update(dark, 700_000_000))
+    }
+
+    @Test
+    fun aSteadyDimRoomTurnsNightOn() {
+        // The same meter value every tick (a converged AE in a still scene) must still trigger.
+        val d = NightDetector()
+        val dimRoom = Meter(1000, 40_000_000L)
+        var on = false
+        for (t in 0..10) on = d.update(dimRoom, t * 150_000_000L)
+        assertTrue(on)
+    }
+
+    @Test
+    fun anOrdinaryIndoorSceneStaysDay() {
+        val d = NightDetector()
+        val office = Meter(400, 20_000_000L)
+        var on = false
+        for (t in 0..20) on = d.update(office, t * 150_000_000L)
+        assertFalse(on)
     }
 
     @Test
@@ -97,8 +116,8 @@ class NightPlannerTest {
         d.update(dark, 0)
         d.update(dark, 1_000_000_000)
 
-        // Slightly brighter than the switch-on level, but not below the switch-off level.
-        val dusk = Meter(1600, 25_000_000L)
+        // Brighter than the switch-on level, but not below the switch-off level.
+        val dusk = Meter(800, 25_000_000L)
         d.update(dusk, 2_000_000_000)
         assertTrue(d.update(dusk, 3_500_000_000))
 

@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -123,9 +124,20 @@ fun CameraScreen(
     var nightProgress by remember { mutableStateOf<Float?>(null) }
     var nightCountdown by remember { mutableStateOf<String?>(null) }
     var developing by remember { mutableIntStateOf(0) }
-    LaunchedEffect(live.meter) {
-        nightAuto = detector.update(live.meter, System.nanoTime())
-        if (!nightAuto) nightOff = false
+    // Tick the detector on a clock, not on meter changes: in a steady dark scene the meter stops
+    // changing, and the dwell timer must still run out.
+    val latestMeter by rememberUpdatedState(live.meter)
+    val latestEv by rememberUpdatedState(settings.evThirds)
+    LaunchedEffect(Unit) {
+        while (true) {
+            // Judge the scene without the user's EV bias, so -0.7 EV doesn't hide a dark scene.
+            val unbiased = latestMeter?.let { m ->
+                Meter(m.iso, (m.exposureNs * Math.pow(2.0, -latestEv / 3.0)).toLong())
+            }
+            nightAuto = detector.update(unbiased, System.nanoTime())
+            if (!nightAuto) nightOff = false
+            delay(150)
+        }
     }
 
     fun showToast(text: String) { toast = text; toastKey++ }
