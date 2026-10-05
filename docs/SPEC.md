@@ -191,7 +191,7 @@ Every item must pass on the test phone:
 - **UI:** every screen passes the screenshot tests against the design, and every gesture and
   animation in `UI_SPEC.md` works.
 - **Algorithm:** every pipeline stage in §5 is on in Auto; blind tests prefer Proview over the
-  stock OnePlus camera, or rate it equal,, on the benchmark scenes; colour ΔE target met (§6).
+  stock OnePlus camera, or rate it equal, on the benchmark scenes; colour ΔE target met (§6).
 - **Speed:** every budget in §7 met.
 - **Stability:** no crashes in a 500-shot soak test; no golden-test regressions.
 
