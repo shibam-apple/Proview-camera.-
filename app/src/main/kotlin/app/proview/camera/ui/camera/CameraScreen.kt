@@ -223,7 +223,11 @@ fun CameraScreen(
                         when {
                             saved == null -> showToast("Night photo failed")
                             report == null -> showToast("Develop failed: ${developed.exceptionOrNull()?.message ?: "error"} · camera JPEG saved")
-                            else -> showToast("Night · ${report.framesMerged} frames · %.1f s".format(report.millis / 1000f))
+                            else -> showToast(
+                                "Night · ${report.framesMerged} frames · ×%.1f%s · %.1f s".format(
+                                    report.exposureGain, if (report.gainCapped) " max" else "", report.millis / 1000f,
+                                ),
+                            )
                         }
                     }
                     runCatching { if (keep) exportBurst(context.applicationContext, burst.dir) }

@@ -73,6 +73,26 @@ class NightPlannerTest {
     }
 
     @Test
+    fun aVeryDarkRoomExposesForTheDarknessNotTheSaturatedMeter() {
+        // Preview AE pinned at ISO 5699, 1/30 s: the meter under-reads the darkness.
+        val pinned = Meter(5699, 33_333_333L)
+        val plan = NightPlanner.plan(pinned, Steadiness.STEADY, subjectMotion = false, isoRange, exposureRange)
+
+        assertTrue(plan.meterSaturated)
+        val base = plan.frames.first { it.role == FrameRole.BASE }
+        assertEquals(333_333_333L, base.exposureNs)
+        // At least as much light per frame as the pinned preview, and no underexposure margin.
+        assertTrue(base.iso.toDouble() * base.exposureNs >= pinned.exposureProduct)
+        assertTrue(base.iso >= 3000)
+    }
+
+    @Test
+    fun anOrdinaryNightSceneStillProtectsHighlights() {
+        val plan = NightPlanner.plan(dimStreet, Steadiness.STEADY, subjectMotion = false, isoRange, exposureRange)
+        assertFalse(plan.meterSaturated)
+    }
+
+    @Test
     fun isoIsClampedToTheSensor() {
         val veryDark = Meter(5699, 125_000_000L)
         val plan = NightPlanner.plan(veryDark, Steadiness.HANDHELD, subjectMotion = false, isoRange, exposureRange)

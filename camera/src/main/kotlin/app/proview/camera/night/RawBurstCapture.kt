@@ -224,6 +224,7 @@ class RawBurstCapture(private val context: Context, private val cameraId: String
                     .put("cameraId", cameraId)
                     .put("steadiness", plan.steadiness.name)
                     .put("subjectMotion", plan.subjectMotion)
+                    .put("meterSaturated", plan.meterSaturated)
                     .put("plan", JSONArray().also { a ->
                         plan.frames.forEach { a.put(JSONObject().put("role", it.role.name).put("iso", it.iso).put("exposureNs", it.exposureNs)) }
                     })

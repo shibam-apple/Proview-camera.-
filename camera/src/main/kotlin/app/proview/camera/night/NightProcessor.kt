@@ -22,7 +22,14 @@ import kotlin.math.exp
 import kotlin.math.ln
 
 /** What happened while developing, for the photo record and debugging. */
-data class DevelopReport(val framesMerged: Int, val meanWeight: Float, val exposureGain: Float, val millis: Long)
+data class DevelopReport(
+    val framesMerged: Int,
+    val meanWeight: Float,
+    val exposureGain: Float,
+    val millis: Long,
+) {
+    val gainCapped: Boolean get() = exposureGain >= NightProcessor.MAX_GAIN - 1e-3f
+}
 
 /**
  * Develops a captured night burst into the final photo (docs/NIGHT_MODE.md, N2):
@@ -34,9 +41,11 @@ object NightProcessor {
      * Brightness the merged scene is rendered at: log-average luminance target. Daylight
      * photography aims for ~0.18; night keeps it low so the night stays night.
      */
-    const val NIGHT_KEY = 0.10f
+    const val NIGHT_KEY = 0.12f
     const val MIN_GAIN = 1.0f
-    const val MAX_GAIN = 12f
+
+    /** 15 merged frames cut noise ~4x, which allows a lot more digital gain than one frame. */
+    const val MAX_GAIN = 24f
 
     fun develop(dir: File, onProgress: (Float) -> Unit = {}): Pair<ByteArray, DevelopReport> {
         val start = System.currentTimeMillis()

@@ -31,7 +31,13 @@ enum class FrameRole {
 
 data class FrameSpec(val role: FrameRole, val iso: Int, val exposureNs: Long)
 
-data class NightPlan(val frames: List<FrameSpec>, val steadiness: Steadiness, val subjectMotion: Boolean) {
+data class NightPlan(
+    val frames: List<FrameSpec>,
+    val steadiness: Steadiness,
+    val subjectMotion: Boolean,
+    /** Preview AE was at its limit, so the plan exposed for darkness rather than the meter. */
+    val meterSaturated: Boolean = false,
+) {
     val baseFrames: Int get() = frames.count { it.role == FrameRole.BASE }
 
     /** Sensor time for the whole burst; what the progress ring counts down. */
@@ -65,6 +71,16 @@ object NightPlanner {
     const val SHORT_STOPS = 2.0
     const val SHORT_FRAMES = 2
 
+    /**
+     * When preview auto-exposure is pinned near its ISO ceiling the meter under-reads (the scene is
+     * darker than the preview can expose), so it can't be trusted. Frames then use the longest
+     * steady time at this ISO, with no underexposure margin.
+     */
+    const val SATURATED_ISO = 3200
+    const val SATURATION_FRACTION = 0.8
+
+    fun aeSaturated(meter: Meter, isoRange: IntRange): Boolean = meter.iso >= isoRange.last * SATURATION_FRACTION
+
     /** Longest frame by steadiness; moving subjects cap it at 1/15 s. */
     fun maxFrameNs(steadiness: Steadiness, subjectMotion: Boolean): Long {
         if (subjectMotion) return 66_666_667L
@@ -92,8 +108,15 @@ object NightPlanner {
             return iso to exposure
         }
 
-        val (photoIso, photoNs) = split(meter.exposureProduct)
-        val (baseIso, baseNs) = split(meter.exposureProduct * 2.0.pow(-BASE_UNDEREXPOSURE_STOPS))
+        val saturated = aeSaturated(meter, isoRange)
+        val product = if (saturated) {
+            maxOf(meter.exposureProduct, maxFrame.toDouble() * minOf(isoRange.last, SATURATED_ISO))
+        } else {
+            meter.exposureProduct
+        }
+        val underexpose = if (saturated) 0.0 else BASE_UNDEREXPOSURE_STOPS
+        val (photoIso, photoNs) = split(product)
+        val (baseIso, baseNs) = split(product * 2.0.pow(-underexpose))
         val shortNs = (baseNs / 2.0.pow(SHORT_STOPS)).roundToLong().coerceIn(exposureRangeNs.first, exposureRangeNs.last)
 
         val frames = floor(budget.toDouble() / baseNs).toInt().coerceIn(MIN_BASE_FRAMES, MAX_BASE_FRAMES)
@@ -102,7 +125,7 @@ object NightPlanner {
             repeat(frames) { add(FrameSpec(FrameRole.BASE, baseIso, baseNs)) }
             repeat(SHORT_FRAMES) { add(FrameSpec(FrameRole.SHORT, baseIso, shortNs)) }
         }
-        return NightPlan(list, steadiness, subjectMotion)
+        return NightPlan(list, steadiness, subjectMotion, saturated)
     }
 }
 
