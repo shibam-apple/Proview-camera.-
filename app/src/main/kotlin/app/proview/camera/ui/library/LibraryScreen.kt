@@ -55,7 +55,9 @@ import app.proview.camera.ui.design.SvgIcon
 import app.proview.camera.ui.design.Type
 import app.proview.camera.ui.design.glass
 import coil.compose.AsyncImage
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -209,8 +211,8 @@ private fun Tile(p: PhotoRecord, index: Int, onOpen: () -> Unit, onFavourite: ()
     val fade = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         delay(if (index % 2 == 1) 60 else 0)
-        kotlinx.coroutines.coroutineScope {
-            kotlinx.coroutines.launch { fade.animateTo(1f, tween(300)) }
+        coroutineScope {
+            launch { fade.animateTo(1f, tween(300)) }
             pop.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 300f))
         }
     }

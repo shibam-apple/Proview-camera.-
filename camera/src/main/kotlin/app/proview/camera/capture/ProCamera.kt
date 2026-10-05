@@ -68,7 +68,7 @@ data class CameraFacts(
  *
  * Multi-frame capture replaces the single-frame [capture] in M2 (SPEC §10).
  */
-@OptIn(ExperimentalCamera2Interop::class)
+@androidx.annotation.OptIn(markerClass = [ExperimentalCamera2Interop::class])
 class ProCamera(private val context: Context) {
 
     private val _live = MutableStateFlow(LiveReadout())
