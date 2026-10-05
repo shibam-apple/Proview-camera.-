@@ -12,8 +12,8 @@ android {
         applicationId = "app.proview.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-m0"
+        versionCode = 2
+        versionName = "0.2.0-m1"
     }
 
     signingConfigs {
@@ -61,5 +61,6 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.coil.compose)
     debugImplementation(libs.compose.ui.tooling)
 }

@@ -27,9 +27,9 @@ import androidx.compose.ui.unit.dp
 import app.proview.camera.device.CameraInfo
 import app.proview.camera.device.DeviceReport
 import app.proview.camera.device.Tier
-import app.proview.camera.ui.theme.Palette
-import app.proview.camera.ui.theme.Type
-import app.proview.camera.ui.theme.glass
+import app.proview.camera.ui.design.Palette
+import app.proview.camera.ui.design.Type
+import app.proview.camera.ui.design.glass
 
 /**
  * M0 build only: shows what Camera2 exposes on this phone, so the pipeline tier and lens

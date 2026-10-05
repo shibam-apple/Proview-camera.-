@@ -1,4 +1,4 @@
-package app.proview.camera.ui.theme
+package app.proview.camera.ui.design
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
