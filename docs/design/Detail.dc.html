@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Photo Detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Jost:wght@500;600&display=swap">
+<style>
+body{margin:0;background:#0a0a0b}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible{outline:2px solid #F5F5F7;outline-offset:2px}
+.glass{background:rgba(24,21,19,.5);backdrop-filter:blur(26px) saturate(1.7);-webkit-backdrop-filter:blur(26px) saturate(1.7);border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 30px rgba(0,0,0,.28)}
+.press{transition:transform .2s cubic-bezier(.3,1.7,.5,1)}
+.press:active{transform:scale(.9)}
+@keyframes ringIn{from{stroke-dasharray:0 100}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background:#0a0a0b;color:#F5F5F7;font-family:-apple-system,'SF Pro Display','Inter',system-ui,sans-serif;display:flex;flex-direction:column;padding:54px 12px 34px;gap:12px;overflow:hidden">
+
+  <!-- nav -->
+  <div style="display:flex;align-items:center;justify-content:space-between;height:44px">
+    <a href="Gallery.dc.html" aria-label="Back to library" class="press glass" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <div style="text-align:center">
+      <div style="font:600 17px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif">18:12</div>
+      <div style="margin-top:5px;font:500 10px/1 -apple-system,'Inter',sans-serif;letter-spacing:.1em;color:rgba(245,245,247,.62)">5 OCT · IMG 0148</div>
+    </div>
+    <button class="press glass" aria-label="More" style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+    </button>
+  </div>
+
+  <!-- photo face -->
+  <div style="position:relative;flex:1;border-radius:36px;overflow:hidden;background:#120f18;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)">
+    <svg viewBox="0 0 390 520" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" role="img" aria-label="Golden hour mountain ridges">
+      <defs>
+        <linearGradient id="skyD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171a30"/><stop offset=".42" stop-color="#6a4a62"/><stop offset=".64" stop-color="#f0a766"/></linearGradient>
+        <radialGradient id="sunD"><stop offset="0" stop-color="#ffe6b8" stop-opacity=".9"/><stop offset="1" stop-color="#ffe6b8" stop-opacity="0"/></radialGradient>
+      </defs>
+      <rect width="390" height="520" fill="url(#skyD)"/>
+      <circle cx="262" cy="318" r="130" fill="url(#sunD)"/>
+      <circle cx="262" cy="318" r="36" fill="#ffe2b0"/>
+      <ellipse cx="90" cy="230" rx="110" ry="5" fill="#f6c9a0" opacity=".25"/>
+      <path d="M0 336 L45 314 L100 342 L160 296 L225 330 L285 314 L345 340 L390 310 V520 H0Z" fill="#3b3250"/>
+      <path d="M0 390 L70 362 L135 398 L205 356 L280 402 L345 368 L390 392 V520 H0Z" fill="#241e33"/>
+      <path d="M0 450 L90 424 L170 460 L255 430 L335 468 L390 440 V520 H0Z" fill="#0d0b12"/>
+    </svg>
+    <span style="position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,0) 28%)"></span>
+    <span class="glass" style="position:absolute;left:16px;bottom:16px;height:30px;padding:0 12px;border-radius:15px;display:flex;align-items:center;font:600 11px/1 -apple-system,'Inter',sans-serif;letter-spacing:.1em">RAW + JPEG</span>
+  </div>
+
+  <!-- shot settings as ring complications -->
+  <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:8px">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="position:relative;width:76px;height:76px">
+        <svg width="76" height="76" viewBox="0 0 76 76" style="position:absolute;inset:0;transform:rotate(-90deg)" aria-hidden="true">
+          <circle cx="38" cy="38" r="32" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="{{accent}}" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" style="animation:ringIn .9s cubic-bezier(.3,1.2,.5,1) both"/>
+        </svg>
+        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 18px/1 'Jost','Futura',sans-serif;font-variant-numeric:tabular-nums">f/1.8</span>
+      </div>
+      <span style="font:600 12px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;color:rgba(245,245,247,.62)">Blur</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="position:relative;width:76px;height:76px">
+        <svg width="76" height="76" viewBox="0 0 76 76" style="position:absolute;inset:0;transform:rotate(-90deg)" aria-hidden="true">
+          <circle cx="38" cy="38" r="32" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="{{accent}}" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="52 100" style="animation:ringIn .9s .08s cubic-bezier(.3,1.2,.5,1) both"/>
+        </svg>
+        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 16px/1 'Jost','Futura',sans-serif;font-variant-numeric:tabular-nums">1/250</span>
+      </div>
+      <span style="font:600 12px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;color:rgba(245,245,247,.62)">Freeze</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="position:relative;width:76px;height:76px">
+        <svg width="76" height="76" viewBox="0 0 76 76" style="position:absolute;inset:0;transform:rotate(-90deg)" aria-hidden="true">
+          <circle cx="38" cy="38" r="32" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="{{accent}}" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="18 100" style="animation:ringIn .9s .16s cubic-bezier(.3,1.2,.5,1) both"/>
+        </svg>
+        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 18px/1 'Jost','Futura',sans-serif;font-variant-numeric:tabular-nums">100</span>
+      </div>
+      <span style="font:600 12px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;color:rgba(245,245,247,.62)">ISO</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="position:relative;width:76px;height:76px">
+        <svg width="76" height="76" viewBox="0 0 76 76" style="position:absolute;inset:0;transform:rotate(-90deg)" aria-hidden="true">
+          <circle cx="38" cy="38" r="32" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="{{accent}}" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="58 100" style="animation:ringIn .9s .24s cubic-bezier(.3,1.2,.5,1) both"/>
+        </svg>
+        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 15px/1 'Jost','Futura',sans-serif;font-variant-numeric:tabular-nums">5600K</span>
+      </div>
+      <span style="font:600 12px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;color:rgba(245,245,247,.62)">White</span>
+    </div>
+  </div>
+
+  <!-- actions -->
+  <div style="display:flex;gap:10px;align-items:center">
+    <a href="Artboard-xdu4.dc.html" class="press" style="flex:1;height:56px;border-radius:28px;background:{{accent}};color:#17120a;display:flex;align-items:center;justify-content:center;gap:10px;font:600 17px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+      Shoot this look
+    </a>
+    <button onClick="{{toggleFav}}" aria-label="Favorite" aria-pressed="{{fav}}" class="press glass" style="width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="{{heartFill}}" stroke="{{heartStroke}}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="transform:scale({{heartScale}});transition:transform .22s cubic-bezier(.3,1.9,.5,1)"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>
+    </button>
+    <button aria-label="Share" class="press glass" style="width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v7h14v-7"/></svg>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#F0832A","options":["#F0832A","#E8553D","#F2C14E","#EDE7DA"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#F0832A';
+    const st = this.state || {};
+    const fav = !!st.fav;
+    return {
+      accent,
+      fav,
+      heartFill: fav ? accent : 'none',
+      heartStroke: fav ? accent : 'currentColor',
+      heartScale: st.bump ? 1.45 : 1,
+      toggleFav: () => {
+        this.setState({ fav: !fav, bump: true });
+        setTimeout(() => this.setState({ bump: false }), 160);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

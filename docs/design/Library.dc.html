@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Jost:wght@500;600&display=swap">
+<style>
+body{margin:0;background:#0a0a0b}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+button:focus-visible,a:focus-visible{outline:2px solid #F5F5F7;outline-offset:2px}
+.glass{background:rgba(24,21,19,.5);backdrop-filter:blur(26px) saturate(1.7);-webkit-backdrop-filter:blur(26px) saturate(1.7);border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 30px rgba(0,0,0,.28)}
+.face{transition:transform .28s cubic-bezier(.3,1.6,.5,1);animation:facePop .5s cubic-bezier(.3,1.4,.5,1) both}
+.face:active{transform:scale(.94)}
+.face:nth-child(2n){animation-delay:.06s}
+.press{transition:transform .2s cubic-bezier(.3,1.7,.5,1)}
+.press:active{transform:scale(.9)}
+@keyframes facePop{from{opacity:0;transform:scale(.88) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background:#0a0a0b;color:#F5F5F7;font-family:-apple-system,'SF Pro Display','Inter',system-ui,sans-serif;display:flex;flex-direction:column;padding-top:54px;overflow:hidden">
+
+  <!-- header -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px;height:56px">
+    <h1 style="margin:0;font:600 34px/1.1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;letter-spacing:-.02em">Library</h1>
+    <span style="padding-bottom:6px;font:500 12px/1 -apple-system,'Inter',sans-serif;letter-spacing:.1em;color:rgba(245,245,247,.62)">5 OCT</span>
+  </div><div onPointerDown="{{swDown}}" onPointerUp="{{swUp}}" style="flex:1;overflow-y:auto;touch-action:pan-y;padding:16px 12px 150px">
+    <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:12px">
+      <sc-for list="{{tiles}}" as="t" hint-placeholder-count="6">
+        <a class="face" href="Detail.dc.html" aria-label="{{t.aria}}" style="position:relative;display:block;aspect-ratio:5 / 6;border-radius:34px;overflow:hidden;background:{{t.bg}};box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)">
+          <span style="position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 52%,rgba(0,0,0,.6))"></span>
+          <span class="glass" style="position:absolute;left:12px;top:12px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="{{t.heartFill}}" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"></path></svg>
+          </span>
+          <span style="position:absolute;right:16px;top:19px;font:600 15px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;text-shadow:0 1px 6px rgba(0,0,0,.4)">{{t.time}}</span>
+          <span style="position:absolute;left:16px;bottom:34px;font:600 28px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;letter-spacing:-.01em;font-variant-numeric:tabular-nums;text-shadow:0 1px 8px rgba(0,0,0,.4)">{{t.frame}}</span>
+          <span style="position:absolute;left:16px;bottom:15px;font:500 10px/1 -apple-system,'Inter',sans-serif;letter-spacing:.08em;color:rgba(255,255,255,.85)">{{t.meta}}</span>
+          <sc-if value="{{t.raw}}" hint-placeholder-val="{{ false }}">
+            <span class="glass" style="position:absolute;right:12px;bottom:12px;height:24px;padding:0 9px;border-radius:12px;display:flex;align-items:center;font:600 10px/1 -apple-system,'Inter',sans-serif;letter-spacing:.1em">RAW</span>
+          </sc-if>
+        </a>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- watch-face grid: swipe sideways to change filter -->
+  
+
+  <!-- bottom bar: sliding filter + camera -->
+  <div style="position:absolute;left:0;right:0;bottom:30px;display:flex;justify-content:center;gap:10px;padding:0 12px">
+    <div class="glass" style="position:relative;display:flex;padding:4px;border-radius:30px" role="group" aria-label="Filter">
+      <span aria-hidden="true" style="position:absolute;top:4px;left:{{segLeft}}px;width:84px;height:44px;border-radius:26px;background:{{accent}};transition:left .4s cubic-bezier(.3,1.5,.5,1)"></span>
+      <sc-for list="{{segs}}" as="s" hint-placeholder-count="3">
+        <button onClick="{{s.pick}}" aria-pressed="{{s.pressed}}" style="position:relative;width:84px;height:44px;border-radius:26px;font:600 15px/1 -apple-system,'SF Pro Display','Inter',system-ui,sans-serif;color:{{s.fg}};transition:color .25s">{{s.label}}</button>
+      </sc-for>
+    </div>
+    <a class="press glass" href="Artboard-xdu4.dc.html" aria-label="Back to camera" style="display:flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:50%">
+      <span style="position:relative;width:38px;height:38px;border-radius:50%">
+        <span style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -1deg, rgba(242,239,233,.8) 0 3deg, transparent 3deg 10deg);-webkit-mask:radial-gradient(circle, transparent 15px, #000 16px 19px, transparent 20px);mask:radial-gradient(circle, transparent 15px, #000 16px 19px, transparent 20px)"></span>
+        <span style="position:absolute;inset:9px;border-radius:50%;background:{{accent}}"></span>
+      </span>
+    </a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#F0832A","options":["#F0832A","#E8553D","#F2C14E","#EDE7DA"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#F0832A';
+    const st = this.state || {};
+    const keys = ['all', 'raw', 'fav'];
+    const fi = st.fi ?? 0;
+    const f = keys[fi];
+    const pal = [
+      ['#171a30', '#c9784f', '#2a2334', '#0f0d14'],
+      ['#9ec9c1', '#e8e3cf', '#37503f', '#1c2a22'],
+      ['#0b1530', '#2a4a7a', '#10192b', '#070b14'],
+      ['#e7b57a', '#f4dfb0', '#a8603a', '#5a2f1c'],
+      ['#8d949b', '#c9ccce', '#4b5256', '#262b2e'],
+      ['#35183d', '#e0627a', '#2b1230', '#12081a']
+    ];
+    const suns = [68, 30, 74, 50, 24, 62];
+    const metas = ['f/1.8 · 1/250', 'f/2.8 · 1/125', 'f/1.4 · 1/60', 'f/4 · 1/500', 'f/5.6 · 1/250', 'f/1.8 · 1/1000'];
+    const all = [];
+    for (let i = 0; i < 12; i++) {
+      const p = pal[i % 6];
+      const frame = String(148 - i).padStart(4, '0');
+      const mins = 18 * 60 + 12 - i * 7;
+      const fav = i === 0 || i === 4 || i === 7;
+      all.push({
+        raw: i % 3 !== 1,
+        fav,
+        heartFill: fav ? 'currentColor' : 'none',
+        frame,
+        time: String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0'),
+        meta: metas[i % 6],
+        aria: 'Photo ' + frame,
+        bg:
+          'radial-gradient(circle at ' + suns[i % 6] + '% 52%, rgba(255,235,200,.85) 0 5%, rgba(255,235,200,0) 9%), linear-gradient(180deg,' +
+          p[0] + ' 0%,' + p[1] + ' 56%,' + p[2] + ' 56%,' + p[3] + ' 100%)'
+      });
+    }
+    const tiles = all.filter((t) => f === 'all' || (f === 'raw' && t.raw) || (f === 'fav' && t.fav));
+    const segs = [['All'], ['RAW'], ['Faves']].map((s, k) => ({
+      label: s[0],
+      pressed: fi === k,
+      fg: fi === k ? '#17120a' : '#F5F5F7',
+      pick: () => this.setState({ fi: k })
+    }));
+    return {
+      accent,
+      tiles,
+      segs,
+      segLeft: 4 + fi * 84,
+      swDown: (e) => { this._sw = { x: e.clientX, y: e.clientY }; },
+      swUp: (e) => {
+        const s = this._sw;
+        this._sw = null;
+        if (!s) return;
+        const dx = e.clientX - s.x;
+        const dy = e.clientY - s.y;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          this.setState({ fi: Math.max(0, Math.min(2, fi + (dx < 0 ? 1 : -1))) });
+        }
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
