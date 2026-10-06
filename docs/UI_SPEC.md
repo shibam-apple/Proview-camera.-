@@ -131,7 +131,9 @@ Swiping an auto-controlled value switches to **M**, seeded with the values Auto 
 
 ### Gestures
 - Viewfinder: **tap** to focus; **hold 480 ms** to lock AE/AF; **swipe sideways ≥ 50 px**
-  to change the look; tap while locked to unlock.
+  to change the look; **swipe up/down** for exposure, one 1/3-stop click (with a haptic tick)
+  every 22 px, up = brighter, value shown in the toast; tap while locked to unlock.
+- Focal pill: tap for the next lens; **drag on the number** (right or up = longer), 36 px per lens.
 - Panel: swipe up, down or sideways anywhere on it to change the selected value.
   The step sizes (px per step) are aperture 20, shutter 20, ISO 24, WB 28, focus 24, EV 12.
 - Focal rail: drag 70 px per lens, fling with a 260 ms decay, tap to jump.

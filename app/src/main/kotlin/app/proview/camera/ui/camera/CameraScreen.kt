@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import app.proview.camera.capture.Control
 import app.proview.camera.capture.Meter
 import app.proview.camera.capture.Mode
 import app.proview.camera.capture.ProCamera
+import app.proview.camera.capture.Steps
 import app.proview.camera.ui.design.DesignFrame
 import app.proview.camera.ui.design.Haptics
 import app.proview.camera.ui.design.LocalDesign
@@ -331,6 +333,29 @@ fun CameraScreen(
                             scope.launch { zoom.animateTo(next, tween(400)) }
                         })
                     }
+                    .pointerInput(stops) {
+                        // Drag on the number to step lenses: right or up = longer, VWFNDR-style.
+                        val click = ds.d(36).toPx()
+                        var acc = 0f
+                        var target = 0
+                        detectDragGestures(
+                            onDragStart = { acc = 0f; target = zoom.value.roundToInt() },
+                            onDrag = { change, d ->
+                                change.consume()
+                                acc += d.x - d.y
+                                while (kotlin.math.abs(acc) >= click) {
+                                    val step = if (acc > 0) 1 else -1
+                                    acc -= step * click
+                                    val next = (target + step).coerceIn(0, stops.lastIndex)
+                                    if (next != target) {
+                                        target = next
+                                        Haptics.tick(view)
+                                        scope.launch { zoom.animateTo(next.toFloat(), tween(250)) }
+                                    }
+                                }
+                            },
+                        )
+                    }
                     .padding(horizontal = ds.d(18)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -366,6 +391,11 @@ fun CameraScreen(
                 val next = looks[(settings.look.ordinal + step + looks.size) % looks.size]
                 onSettings(settings.copy(look = next))
                 showToast(next.label)
+            },
+            onSwipeEv = { step ->
+                val ev = (settings.evThirds + step).coerceIn(Steps.EV_MIN_THIRDS, Steps.EV_MAX_THIRDS)
+                if (ev != settings.evThirds) onSettings(settings.copy(evThirds = ev))
+                showToast("EV ${Steps.evLabel(ev)}")
             },
         ) {
             if (nightPlan != null || capturingNight) {

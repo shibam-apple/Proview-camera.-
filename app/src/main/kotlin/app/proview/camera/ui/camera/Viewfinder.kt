@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -82,6 +83,8 @@ fun Viewfinder(
     modifier: Modifier = Modifier,
     /** Sideways swipe: +1 = next look, -1 = previous (UI_SPEC §2, Gestures). */
     onSwipeLook: (Int) -> Unit = {},
+    /** Vertical swipe, in 1/3-stop clicks: +1 = brighter (swipe up), -1 = darker. */
+    onSwipeEv: (Int) -> Unit = {},
     overlay: @Composable () -> Unit,
 ) {
     val ds = LocalDesign.current
@@ -93,7 +96,9 @@ fun Viewfinder(
     val holdLock by rememberUpdatedState(onHoldLock)
     val unlock by rememberUpdatedState(onUnlock)
     val swipeLook by rememberUpdatedState(onSwipeLook)
+    val swipeEv by rememberUpdatedState(onSwipeEv)
     val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { ds.d(50).toPx() }
+    val evClick = with(androidx.compose.ui.platform.LocalDensity.current) { ds.d(22).toPx() }
 
     DisposableEffect(Unit) {
         onDispose { camera.unbind() }
@@ -131,7 +136,8 @@ fun Viewfinder(
             }
         }
 
-        // Gestures: tap to focus, hold 480 ms to lock AE/AF, tap again to unlock, swipe for looks.
+        // Gestures: tap to focus, hold 480 ms to lock AE/AF, tap again to unlock, swipe sideways
+        // for looks, swipe up/down for exposure (a click every 1/3 stop, as in VWFNDR).
         Box(
             Modifier
                 .fillMaxSize()
@@ -144,6 +150,22 @@ fun Viewfinder(
                             if (kotlin.math.abs(dx) >= swipeThreshold) {
                                 Haptics.tick(view)
                                 swipeLook(if (dx < 0) 1 else -1)
+                            }
+                        },
+                    )
+                }
+                .pointerInput(Unit) {
+                    var acc = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { acc = 0f },
+                        onVerticalDrag = { change, d ->
+                            change.consume()
+                            acc -= d
+                            while (kotlin.math.abs(acc) >= evClick) {
+                                val step = if (acc > 0) 1 else -1
+                                acc -= step * evClick
+                                Haptics.tick(view)
+                                swipeEv(step)
                             }
                         },
                     )
