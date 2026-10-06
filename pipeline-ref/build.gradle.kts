@@ -42,3 +42,16 @@ tasks.register<JavaExec>("enhanceSamples") {
     )
     maxHeapSize = "4g"
 }
+
+// Desktop calibration harness for the RAW rendering (not part of the app or CI).
+tasks.register<JavaExec>("renderRaw") {
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("app.proview.pipeline.tools.RenderRawKt")
+    args = listOf(
+        project.findProperty("in") as String,
+        project.findProperty("out") as String,
+        (project.findProperty("style") as String?) ?: "-",
+        (project.findProperty("only") as String?) ?: "-",
+    )
+    maxHeapSize = "6g"
+}

@@ -230,3 +230,46 @@ A CameraX effect runs an OpenGL ES 2.0 fragment shader on every preview frame. I
 
 Together these give the waist-level-finder feel. It affects only the preview. Photos aren't
 distorted.
+
+---
+
+## 6. Rendition: RAW → photo, Hasselblad-inspired (`finish/Rendition.kt`)
+
+This is the stage that turns calibrated scene light into the finished photo. It's shared by the
+upcoming RAW day path and, later, night mode. The philosophy is **restraint**, the opposite of
+typical phone processing:
+
+| Stage | What it does |
+|---|---|
+| **Exposure** | Brings the log-average luminance of the middle 96% of pixels to a key of 0.16. Dark scenes stay dark: beyond +2 stops only half the push is applied, and never more than +3 in all (real darkness is night mode's job). A guard keeps unclipped highlight detail within the shoulder. |
+| **Flare** | Measures the veiling black (darkest 0.1%) and removes 80% of it, capped at 0.8%, so photos aren't milky. |
+| **Local lift** | Edge-aware base layer (guided filter on log luminance, quarter resolution). Regions darker than 45% of the key are lifted halfway, capped at **1 stop**, so the scene keeps its light (no flat HDR). |
+| **Tone** | In log-log space: slope 1.15 at mid-grey, an extra 0.35 in the deep shadows (the toe, for deep blacks with detail), and 0.85 above mid-grey (soft, compressed highlights). Then an exponential shoulder from 0.5 that reaches white exactly at the sensor's clip. Applied to luminance as a ratio, so hues don't shift. |
+| **Colour** | Calibrated sensor colour (DNG/Camera2 dual-illuminant matrices) with **no saturation boost (factor 1.0)**. Chroma eases off 45% toward pure white, as film does. Out-of-gamut colours are compressed toward grey at constant Oklab lightness and hue (bisection) instead of clipping, so bright skies and red fabric never change hue. |
+| **Sharpening** | Unsharp mask, radius ~1 px, amount 0.35, cored at 1.5/255, overshoot limited to ±6%. No clarity. |
+
+### How it was calibrated
+- **Data:** 15 real RAW files from 14 cameras, all open sample files:
+  - Canon, Nikon, Sony, Leica, Olympus/OM, Panasonic, a DJI drone, and an LG Nexus 5X phone DNG;
+  - 6 more are public metadata test samples, plus a NASA ISS photo.
+- **Reference:** every RAW file also contains the camera maker's own finished JPEG of the same
+  frame, which gives same-scene pairs.
+- **Metrics:** a style-statistics tool measures both sets:
+  - Oklab lightness percentiles (blacks, mids, highlights),
+  - chroma (mean, 90th percentile, per hue sector, in highlights),
+  - local contrast,
+  - clipped share.
+- **Tuning:** the parameters were set so tone placement matches the makers' JPEGs while colour
+  stays *more* restrained:
+
+| | L p5 | L p50 | L p95 | Clipped | Chroma mean / p90 |
+|---|---|---|---|---|---|
+| Maker JPEGs | 0.277 | 0.529 | 0.765 | 0.49% | 0.033 / 0.066 |
+| Proview Rendition | 0.287 | 0.523 | 0.758 | 0.30% | 0.033 / 0.070 |
+
+- **Hasselblad targets:** these will be fitted the same way, from Hasselblad sample photos, once
+  they're added.
+- **Tools** (desktop, not in the app):
+  - `./gradlew renderRaw -Pin=<exported RAWs> -Pout=<dir> [-Pstyle=key=…,contrast=…]` renders RAWs
+    through this stage.
+  - `./gradlew enhanceSamples` does the same for the Lab.
