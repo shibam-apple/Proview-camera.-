@@ -241,11 +241,11 @@ typical phone processing:
 
 | Stage | What it does |
 |---|---|
-| **Exposure** | Brings the log-average luminance of the middle 96% of pixels to a key of 0.16. Dark scenes stay dark: beyond +2 stops only half the push is applied, and never more than +3 in all (real darkness is night mode's job). A guard keeps unclipped highlight detail within the shoulder. |
+| **Exposure** | Brings the log-average luminance of the middle 96% of pixels to a key of 0.15. Dark scenes stay dark: beyond +2 stops only half the push is applied, and never more than +3 in all (real darkness is night mode's job). A guard keeps unclipped highlight detail within the shoulder. |
 | **Flare** | Measures the veiling black (darkest 0.1%) and removes 80% of it, capped at 0.8%, so photos aren't milky. |
 | **Local lift** | Edge-aware base layer (guided filter on log luminance, quarter resolution). Regions darker than 45% of the key are lifted halfway, capped at **1 stop**, so the scene keeps its light (no flat HDR). |
-| **Tone** | In log-log space: slope 1.15 at mid-grey, an extra 0.35 in the deep shadows (the toe, for deep blacks with detail), and 0.85 above mid-grey (soft, compressed highlights). Then an exponential shoulder from 0.5 that reaches white exactly at the sensor's clip. Applied to luminance as a ratio, so hues don't shift. |
-| **Colour** | Calibrated sensor colour (DNG/Camera2 dual-illuminant matrices) with **no saturation boost (factor 1.0)**. Chroma eases off 45% toward pure white, as film does. Out-of-gamut colours are compressed toward grey at constant Oklab lightness and hue (bisection) instead of clipping, so bright skies and red fabric never change hue. |
+| **Tone** | In log-log space: slope 1.3 at mid-grey, rising by up to 0.8 more in the deep shadows (the toe: deep blacks that keep detail), and 1.0 above mid-grey. Then an exponential shoulder from 0.5 that reaches white exactly at the sensor's clip. Applied to luminance as a ratio, so hues don't shift. |
+| **Colour** | Calibrated sensor colour (DNG/Camera2 dual-illuminant matrices) with **no global saturation boost (factor 1.0)**. A hue-selective lift makes muted-to-medium greens (+30%), sky blues (+30%) and yellows (+15%) richer, while reds and skin stay calibrated and already-vivid colours (chroma above ~0.2) aren't pushed. Chroma eases off 60% toward pure white, as film does. Out-of-gamut colours are compressed toward grey at constant Oklab lightness and hue (bisection) instead of clipping, so bright skies and red fabric never change hue. |
 | **Sharpening** | Unsharp mask, radius ~1 px, amount 0.35, cored at 1.5/255, overshoot limited to ±6%. No clarity. |
 
 ### How it was calibrated
@@ -273,3 +273,19 @@ typical phone processing:
   - `./gradlew renderRaw -Pin=<exported RAWs> -Pout=<dir> [-Pstyle=key=…,contrast=…]` renders RAWs
     through this stage.
   - `./gradlew enhanceSamples` does the same for the Lab.
+
+### Hasselblad tuning
+- **Data:** five Hasselblad sample photos were measured with the same tool. They're different
+  scenes from the RAW set, so they show a *direction*, not exact targets.
+- **What they showed:**
+  - much deeper blacks (L p5 0.169 vs 0.287),
+  - a wider range (L p95 0.863 vs 0.758),
+  - richer greens, blues and yellows while reds stay the same, with peak chroma not raised,
+  - cleaner, whiter highlights.
+- **What changed:** the defaults moved that way: key 0.15, contrast 1.3, toe 0.8, highlight slope
+  1.0, highlight desaturation 0.6, and the hue lifts above.
+- **Result on the RAW set:**
+  - L p5 0.225, p50 0.503, p95 0.791,
+  - chroma mean 0.035 and p90 0.068, so vivid colours are no stronger than before,
+  - skin unchanged.
+- **Next:** 15–30 more Hasselblad samples covering a spread of scenes will refine this.

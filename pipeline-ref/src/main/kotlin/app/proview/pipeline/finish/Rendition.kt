@@ -21,17 +21,18 @@ import kotlin.math.pow
  *   lightness and hue instead of clipped, so skies and skin never shift hue.
  * - Light sharpening, cored so noise isn't sharpened.
  */
-// Defaults calibrated on 15 RAW files from 14 cameras against each camera maker's own JPEG of
-// the same frame (tone placement, highlight clipping, chroma): see docs/ALGORITHM.md.
+// Defaults: tone placement first calibrated on 15 RAW files (14 cameras) against each maker's
+// own JPEG of the same frame, then moved toward Hasselblad samples (deeper blacks, wider range,
+// richer greens/blues/yellows with skin untouched, cleaner highlights): see docs/ALGORITHM.md.
 data class RenderStyle(
     /** Scene mid-grey after exposure (linear). */
-    val key: Float = 0.16f,
+    val key: Float = 0.15f,
     /** Slope of the tone curve around mid-grey in log-log; 1 = no added contrast. */
-    val contrast: Float = 1.15f,
+    val contrast: Float = 1.3f,
     /** Log-log slope above mid-grey, eased in over 1.5 stops: below 1 = soft, compressed highlights. */
-    val highContrast: Float = 0.85f,
+    val highContrast: Float = 1.0f,
     /** Extra log-log slope in the deep shadows (the toe): blacks get deeper, detail stays. */
-    val toe: Float = 0.35f,
+    val toe: Float = 0.8f,
     /** Fraction of the measured veiling flare (lens haze) taken off the black point. */
     val flare: Float = 0.8f,
     /** Linear display level where the highlight shoulder starts. */
@@ -42,8 +43,16 @@ data class RenderStyle(
     val liftStrength: Float = 0.5f,
     /** Chroma factor on calibrated colour; 1 = colorimetric. */
     val saturation: Float = 1.0f,
+    /**
+     * Hue-selective chroma lift for muted-to-medium colours (Oklab hue): foliage greens, sky
+     * blues and yellows get richer while reds and skin stay calibrated, and colours that are
+     * already vivid aren't pushed further. Measured on Hasselblad samples.
+     */
+    val greenLift: Float = 0.3f,
+    val blueLift: Float = 0.3f,
+    val yellowLift: Float = 0.15f,
     /** Chroma removed at full white (0..1), eased in over the top of the tone range. */
-    val highlightDesat: Float = 0.45f,
+    val highlightDesat: Float = 0.6f,
     /** Unsharp amount on display luma, radius ~1 px. */
     val sharpen: Float = 0.35f,
     /** Exposure: true = set from the scene; false = use the gain passed in. */
@@ -103,7 +112,7 @@ object Rendition {
                 val lab = Oklab.fromLinearSrgb(rr.coerceAtLeast(0f), gg.coerceAtLeast(0f), bb.coerceAtLeast(0f))
                 val lt = 0.2126f * rr + 0.7152f * gg + 0.0722f * bb
                 val ease = 1f - style.highlightDesat * smoothstep(0.55f, 1f, lt)
-                val f = sat * ease
+                val f = sat * ease * hueLift(lab[1], lab[2], style)
                 val rgb = gamutMap(lab[0], lab[1] * f, lab[2] * f)
                 r[i] = Finisher.srgbEncode(rgb[0])
                 g[i] = Finisher.srgbEncode(rgb[1])
@@ -233,6 +242,28 @@ object Rendition {
             g[i] = (g[i] + add).coerceIn(0f, 1f)
             b[i] = (b[i] + add).coerceIn(0f, 1f)
         }
+    }
+
+    /**
+     * Chroma factor from hue: raised-cosine bumps centred on yellow (~100 deg), green (~145 deg)
+     * and sky blue (~255 deg) in Oklab, kept clear of skin (~30-70 deg). The lift fades out for
+     * near-greys (no tint) and for colours that are already vivid (chroma above ~0.2).
+     */
+    private fun hueLift(a: Float, b: Float, st: RenderStyle): Float {
+        if (st.greenLift == 0f && st.blueLift == 0f && st.yellowLift == 0f) return 1f
+        val c = kotlin.math.sqrt(a * a + b * b)
+        if (c < 0.005f) return 1f
+        val h = Math.toDegrees(kotlin.math.atan2(b, a).toDouble()).toFloat().let { if (it < 0f) it + 360f else it }
+        val w = st.yellowLift * bump(h, 100f, 30f) + st.greenLift * bump(h, 145f, 45f) + st.blueLift * bump(h, 255f, 45f)
+        val amount = smoothstep(0.005f, 0.025f, c) * (1f - smoothstep(0.1f, 0.22f, c))
+        return 1f + w * amount
+    }
+
+    private fun bump(h: Float, centre: Float, halfWidth: Float): Float {
+        var d = abs(h - centre)
+        if (d > 180f) d = 360f - d
+        if (d >= halfWidth) return 0f
+        return 0.5f + 0.5f * kotlin.math.cos(Math.PI.toFloat() * d / halfWidth)
     }
 
     private fun smoothstep(e0: Float, e1: Float, x: Float): Float {

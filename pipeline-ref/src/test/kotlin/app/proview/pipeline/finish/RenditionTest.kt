@@ -49,16 +49,23 @@ class RenditionTest {
         }
     }
 
-    @Test
-    fun `colour is not boosted beyond calibration`() {
-        val c = floatArrayOf(0.12f, 0.2f, 0.08f) // a mid green
+    private fun chromaRatio(c: FloatArray): Double {
         val out = render(listOf(c))[0]
         val lin = FloatArray(3) { srgbToLinear(out[it]) }
         val a = Oklab.fromLinearSrgb(c[0], c[1], c[2])
         val o = Oklab.fromLinearSrgb(lin[0], lin[1], lin[2])
-        val chromaIn = Math.hypot(a[1].toDouble(), a[2].toDouble()) / a[0]
-        val chromaOut = Math.hypot(o[1].toDouble(), o[2].toDouble()) / o[0]
-        assertTrue(chromaOut < chromaIn * 1.1, "saturation boosted: $chromaIn -> $chromaOut")
+        return (Math.hypot(o[1].toDouble(), o[2].toDouble()) / o[0]) / (Math.hypot(a[1].toDouble(), a[2].toDouble()) / a[0])
+    }
+
+    @Test
+    fun `skin keeps calibrated saturation and foliage lift stays bounded`() {
+        val skin = chromaRatio(floatArrayOf(0.45f, 0.28f, 0.2f))
+        assertTrue(skin < 1.08, "skin saturation boosted x$skin")
+        val green = chromaRatio(floatArrayOf(0.12f, 0.2f, 0.08f))
+        assertTrue(green in 1.0..1.4, "foliage lift out of range x$green")
+        // An already vivid green is not pushed further.
+        val vivid = chromaRatio(floatArrayOf(0.02f, 0.35f, 0.02f))
+        assertTrue(vivid < 1.1, "vivid colour boosted x$vivid")
     }
 
     @Test
