@@ -59,6 +59,8 @@ import app.proview.camera.night.NightDetector
 import app.proview.camera.night.NightPlan
 import app.proview.camera.night.NightPlanner
 import app.proview.camera.night.NightProcessor
+import app.proview.pipeline.finish.RenderStyle
+import app.proview.camera.night.DayPlanner
 import app.proview.camera.develop.PhotoDeveloper
 import app.proview.camera.ui.design.glowFromScene
 import app.proview.pipeline.look.Look
@@ -177,6 +179,14 @@ fun CameraScreen(
     }
     val capturingNight = nightProgress != null
 
+    /** The RAW day plan when it applies: Auto mode, RAW-capable camera, 1x, and switched on. */
+    fun rawDayPlan(): NightPlan? {
+        if (settings.mode != Mode.AUTO || !facts.supportsRaw || zoom.value > 0.05f) return null
+        if (!BurstPrefs.rawDay(context)) return null
+        val meter = live.meter ?: return null
+        return DayPlanner.plan(meter, motion.steadiness, subjectMoving, facts.isoRange, facts.exposureRangeNs)
+    }
+
     fun setMode(m: Mode) {
         if (m == settings.mode) return
         val next = if (m == Mode.MANUAL) settings.toManual(live.meter) else settings.copy(mode = m)
@@ -255,9 +265,56 @@ fun CameraScreen(
         }
     }
 
+    /**
+     * Day photo from RAW: a short burst merged and finished by Proview's Rendition (the
+     * Hasselblad-inspired look) instead of the phone's JPEG, which stays as the fallback.
+     */
+    fun shootRawDay(plan: NightPlan) {
+        busy = true
+        Haptics.heavy(view)
+        vf.blinkKey++
+        shots++
+        val photo = plan.frames.first { it.role == FrameRole.PHOTO }
+        val look = settings.look
+        // The Rendition sets brightness from the scene, so the EV swipe moves its target instead.
+        val style = RenderStyle.DAY.let { it.copy(key = it.key * Math.pow(2.0, settings.evThirds / 3.0).toFloat()) }
+        val dir = File(context.cacheDir, "day/" + SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date()))
+        scope.launch {
+            val result = runCatching { camera.captureNight(plan, dir, writeDng = false) { _, _ -> } }
+            busy = false
+            result.onSuccess { burst ->
+                developing++
+                backgroundScope.launch(Dispatchers.Default) {
+                    val developed = developLock.withLock { runCatching { NightProcessor.develop(burst.dir, look = look, style = style) } }
+                    // Fallback: the phone's own JPEG from the same burst.
+                    val jpeg = developed.getOrNull()?.first ?: burst.photoJpeg
+                    val saved = jpeg?.let { bytes -> runCatching { camera.saveJpeg(bytes) }.getOrNull() }
+                    withContext(Dispatchers.Main) {
+                        developing--
+                        if (saved != null) {
+                            onShot(Shot(saved, photo.iso, photo.exposureNs))
+                            remaining = remainingShots(context)
+                        }
+                        val report = developed.getOrNull()?.second
+                        when {
+                            saved == null -> showToast("Couldn't save the photo")
+                            report == null -> showToast("RAW develop failed: ${developed.exceptionOrNull()?.message ?: "error"} · phone JPEG saved")
+                            else -> showToast("Proview RAW · ${report.framesMerged} frames · %.1f s".format(report.millis / 1000f))
+                        }
+                    }
+                    burst.dir.deleteRecursively()
+                }
+            }.onFailure {
+                showToast("RAW capture failed: ${it.message ?: it.javaClass.simpleName}")
+                dir.deleteRecursively()
+            }
+        }
+    }
+
     fun shoot() {
         if (busy) return
         nightPlan?.let { shootNight(it); return }
+        rawDayPlan()?.let { shootRawDay(it); return }
         busy = true
         Haptics.heavy(view)
         vf.blinkKey++

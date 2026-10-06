@@ -42,6 +42,8 @@ fun DeviceCheckScreen(
     onShare: () -> Unit,
     saveBursts: Boolean = false,
     onSaveBursts: (Boolean) -> Unit = {},
+    rawDay: Boolean = true,
+    onRawDay: (Boolean) -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val version = androidx.compose.runtime.remember {
@@ -70,6 +72,13 @@ fun DeviceCheckScreen(
                 item { Text("Reading cameras…", style = Type.Body, color = Palette.Text2, modifier = Modifier.padding(8.dp)) }
             } else {
                 item { TierCard(report) }
+                item {
+                    SettingToggle(
+                        "Proview colour (RAW)",
+                        "Day photos are shot as a 4-frame RAW burst and finished by Proview's own Hasselblad-inspired rendering instead of the phone's JPEG. Auto mode at 1x. About a second slower.",
+                        rawDay, onRawDay,
+                    )
+                }
                 item { BurstToggle(saveBursts, onSaveBursts) }
                 items(report.cameras, key = { it.id }) { CameraCard(it) }
             }
@@ -95,7 +104,14 @@ private fun tierMeaning(tier: Tier?) = when (tier) {
 
 /** Debug switch: keep every night burst (DNG frames + metadata) in Download/Proview/Bursts. */
 @Composable
-private fun BurstToggle(on: Boolean, onChange: (Boolean) -> Unit) {
+private fun BurstToggle(on: Boolean, onChange: (Boolean) -> Unit) = SettingToggle(
+    "Save night bursts",
+    "Keeps the RAW frames of each night shot in Download/Proview/Bursts for testing. About 25 MB per frame.",
+    on, onChange,
+)
+
+@Composable
+private fun SettingToggle(title: String, body: String, on: Boolean, onChange: (Boolean) -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Row(
         Modifier
@@ -105,10 +121,10 @@ private fun BurstToggle(on: Boolean, onChange: (Boolean) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Save night bursts", style = Type.Ttl, color = Palette.Text1)
+            Text(title, style = Type.Ttl, color = Palette.Text1)
             Spacer(Modifier.height(6.dp))
             Text(
-                "Keeps the RAW frames of each night shot in Download/Proview/Bursts for testing. About 25 MB per frame.",
+                body,
                 style = Type.Cap.copy(lineHeight = Type.Cap.fontSize * 1.4f),
                 color = Palette.Text2,
             )

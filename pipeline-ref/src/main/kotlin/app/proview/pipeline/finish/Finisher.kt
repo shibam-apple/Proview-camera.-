@@ -43,6 +43,12 @@ data class FinishParams(
     val shoulderStart: Float = 0.55f,
     /** Chroma noise blur radius at half resolution, pixels. 0 disables. */
     val chromaRadius: Int = 3,
+    /**
+     * When set, tone and colour come from [Rendition] with this style (exposure, local lift,
+     * filmic curve, Hasselblad-inspired colour) instead of the plain shoulder curve. Without
+     * auto exposure in the style, [exposureGain] is used.
+     */
+    val style: RenderStyle? = null,
 )
 
 /** Final image: ARGB pixels, already rotated. */
@@ -57,11 +63,41 @@ class Output(val width: Int, val height: Int, val argb: IntArray)
  */
 object Finisher {
     fun finish(frame: RawFrame, p: FinishParams): Output {
+        if (p.style != null) return finishRendition(frame, p, p.style)
         val balanced = balance(frame, p)
         val rgb = Demosaic.mhc(balanced)
         colorAndTone(rgb, p)
         if (p.chromaRadius > 0) chromaDenoise(rgb, p.chromaRadius)
         return encode(rgb, p.orientation)
+    }
+
+    /**
+     * The Rendition path: balance at unit gain (1.0 = sensor clip), demosaic, calibrated matrix,
+     * chroma NR in linear light, then [Rendition] decides exposure, tone and colour.
+     */
+    private fun finishRendition(frame: RawFrame, p: FinishParams, style: RenderStyle): Output {
+        val balanced = balance(frame, p.copy(exposureGain = 1f))
+        val rgb = Demosaic.mhc(balanced)
+        applyMatrix(rgb, p.cameraToSrgb)
+        if (p.chromaRadius > 0) chromaDenoise(rgb, p.chromaRadius)
+        Rendition.render(rgb.r, rgb.g, rgb.b, rgb.width, rgb.height, style, p.exposureGain)
+        return encode(rgb, p.orientation, displayEncoded = true)
+    }
+
+    /** White-balanced camera RGB -> linear sRGB, negatives clamped. */
+    fun applyMatrix(rgb: Rgb, cameraToSrgb: DoubleArray) {
+        val m = FloatArray(9) { cameraToSrgb[it].toFloat() }
+        IntStream.range(0, rgb.height).parallel().forEach { y ->
+            for (x in 0 until rgb.width) {
+                val i = y * rgb.width + x
+                val cr = rgb.r[i]
+                val cg = rgb.g[i]
+                val cb = rgb.b[i]
+                rgb.r[i] = (m[0] * cr + m[1] * cg + m[2] * cb).coerceAtLeast(0f)
+                rgb.g[i] = (m[3] * cr + m[4] * cg + m[5] * cb).coerceAtLeast(0f)
+                rgb.b[i] = (m[6] * cr + m[7] * cg + m[8] * cb).coerceAtLeast(0f)
+            }
+        }
     }
 
     /** Lens shading, white balance and exposure gain; clips highlights to neutral. */
@@ -240,7 +276,8 @@ object Finisher {
         return hash(seed) + hash(seed + 1) - 1f
     }
 
-    fun encode(rgb: Rgb, orientation: Int): Output {
+    /** Rotates and quantises to 8 bits with dither; [displayEncoded] input is already sRGB-encoded. */
+    fun encode(rgb: Rgb, orientation: Int, displayEncoded: Boolean = false): Output {
         val w = rgb.width
         val h = rgb.height
         val rot = ((orientation % 360) + 360) % 360
@@ -262,9 +299,12 @@ object Finisher {
                     else -> oy
                 }
                 val i = sy * w + sx
-                val r = (srgbEncode(rgb.r[i]) * 255f + 0.5f + dither(ox, oy, 0)).toInt().coerceIn(0, 255)
-                val g = (srgbEncode(rgb.g[i]) * 255f + 0.5f + dither(ox, oy, 1)).toInt().coerceIn(0, 255)
-                val b = (srgbEncode(rgb.b[i]) * 255f + 0.5f + dither(ox, oy, 2)).toInt().coerceIn(0, 255)
+                val vr = if (displayEncoded) rgb.r[i] else srgbEncode(rgb.r[i])
+                val vg = if (displayEncoded) rgb.g[i] else srgbEncode(rgb.g[i])
+                val vb = if (displayEncoded) rgb.b[i] else srgbEncode(rgb.b[i])
+                val r = (vr * 255f + 0.5f + dither(ox, oy, 0)).toInt().coerceIn(0, 255)
+                val g = (vg * 255f + 0.5f + dither(ox, oy, 1)).toInt().coerceIn(0, 255)
+                val b = (vb * 255f + 0.5f + dither(ox, oy, 2)).toInt().coerceIn(0, 255)
                 out[oy * ow + ox] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
             }
         }

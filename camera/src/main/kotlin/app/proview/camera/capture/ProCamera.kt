@@ -77,6 +77,8 @@ data class CameraFacts(
     val exposureRangeNs: LongRange = 100_000L..1_000_000_000L,
     /** Degrees the sensor image is rotated from the phone held upright (JPEG/DNG orientation). */
     val sensorOrientation: Int = 90,
+    /** The camera can deliver RAW_SENSOR frames (needed for Proview's own day and night pipeline). */
+    val supportsRaw: Boolean = false,
 )
 
 /**
@@ -232,6 +234,8 @@ class ProCamera(private val context: Context) {
             baseFocalMm = baseFocal,
             exposureRangeNs = exposure?.let { it.lower..it.upper } ?: (100_000L..1_000_000_000L),
             sensorOrientation = orientation,
+            supportsRaw = info.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                ?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) == true,
         )
     }
 

@@ -123,6 +123,16 @@ object BurstPrefs {
     fun setSaveBursts(context: Context, on: Boolean) {
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean(KEY, on).apply()
     }
+
+    private const val RAW_DAY = "rawDay"
+
+    /** Day photos from RAW through Proview's own rendering (on by default where RAW exists). */
+    fun rawDay(context: Context): Boolean =
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean(RAW_DAY, true)
+
+    fun setRawDay(context: Context, on: Boolean) {
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().putBoolean(RAW_DAY, on).apply()
+    }
 }
 
 /**

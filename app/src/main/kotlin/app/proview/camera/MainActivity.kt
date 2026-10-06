@@ -162,11 +162,14 @@ class MainActivity : ComponentActivity() {
                     value = withContext(Dispatchers.Default) { DeviceProbe(applicationContext).probe() }
                 }
                 var saveBursts by remember { mutableStateOf(BurstPrefs.saveBursts(this@MainActivity)) }
+                var rawDay by remember { mutableStateOf(BurstPrefs.rawDay(this@MainActivity)) }
                 DeviceCheckScreen(
                     report = report,
                     onShare = { report?.let(::shareReport) },
                     saveBursts = saveBursts,
                     onSaveBursts = { on -> saveBursts = on; BurstPrefs.setSaveBursts(this@MainActivity, on) },
+                    rawDay = rawDay,
+                    onRawDay = { on -> rawDay = on; BurstPrefs.setRawDay(this@MainActivity, on) },
                 )
             }
         }

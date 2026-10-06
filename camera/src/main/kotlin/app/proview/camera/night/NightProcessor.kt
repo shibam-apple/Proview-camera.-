@@ -8,6 +8,7 @@ import app.proview.pipeline.finish.ColorCalibration
 import app.proview.pipeline.finish.FinishParams
 import app.proview.pipeline.finish.Finisher
 import app.proview.pipeline.finish.M3
+import app.proview.pipeline.finish.RenderStyle
 import app.proview.pipeline.finish.SensorColor
 import app.proview.pipeline.finish.ShadingMap
 import app.proview.pipeline.merge.BurstMerger
@@ -48,7 +49,11 @@ object NightProcessor {
     /** 15 merged frames cut noise ~4x, which allows a lot more digital gain than one frame. */
     const val MAX_GAIN = 24f
 
-    fun develop(dir: File, look: Look = Look.DEFAULT, onProgress: (Float) -> Unit = {}): Pair<ByteArray, DevelopReport> {
+    /**
+     * Merges the burst in [dir] and finishes it. With [style] (day photos) tone and colour come
+     * from the Rendition; without it, the night path's own key, gain and shoulder are used.
+     */
+    fun develop(dir: File, look: Look = Look.DEFAULT, style: RenderStyle? = null, onProgress: (Float) -> Unit = {}): Pair<ByteArray, DevelopReport> {
         val start = System.currentTimeMillis()
         val cal = JSONObject(File(dir, "calibration.json").readText())
         val burst = JSONObject(File(dir, "burst.json").readText())
@@ -88,13 +93,14 @@ object NightProcessor {
         } else {
             M3.IDENTITY
         }
-        val gain = exposureGain(merged, wb)
+        val gain = if (style == null || !style.autoExposure) exposureGain(merged, wb) else 1f
         val params = FinishParams(
             wbGains = wb,
             cameraToSrgb = camToSrgb,
             exposureGain = gain,
             shading = shadingMap(ref),
             orientation = cal.optInt("sensorOrientation", 90),
+            style = style,
         )
         val out = Finisher.finish(merged, params)
         onProgress(0.9f)
