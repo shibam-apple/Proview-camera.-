@@ -8,3 +8,8 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+training/.venv/
+training/data/
+training/runs/
+training/**/__pycache__/
+*.pt
