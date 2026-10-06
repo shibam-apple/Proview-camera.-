@@ -79,7 +79,7 @@ fun NightChip(active: Boolean, seconds: Float, onToggle: () -> Unit, modifier: M
     }
 }
 
-/** "Developing night photo…" while bursts are processed in the background. */
+/** "Developing…" while photos are processed in the background. */
 @Composable
 fun DevelopingChip(count: Int, modifier: Modifier = Modifier) {
     val ds = LocalDesign.current
@@ -98,7 +98,7 @@ fun DevelopingChip(count: Int, modifier: Modifier = Modifier) {
                 strokeWidth = ds.d(1.5f),
             )
             Text(
-                if (count > 1) "Developing $count night photos…" else "Developing night photo…",
+                if (count > 1) "Developing $count photos…" else "Developing…",
                 style = ds.text(Type.Cap),
                 color = Palette.Text1,
             )

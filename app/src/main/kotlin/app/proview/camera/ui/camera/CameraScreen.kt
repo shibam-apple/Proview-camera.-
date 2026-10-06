@@ -57,6 +57,9 @@ import app.proview.camera.night.NightDetector
 import app.proview.camera.night.NightPlan
 import app.proview.camera.night.NightPlanner
 import app.proview.camera.night.NightProcessor
+import app.proview.camera.develop.PhotoDeveloper
+import app.proview.camera.ui.design.glowFromScene
+import app.proview.pipeline.look.Look
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -96,6 +99,13 @@ fun CameraScreen(
 
     // Push settings to the sensor whenever they change.
     LaunchedEffect(settings) { camera.apply(settings) }
+    // The viewfinder shader previews the selected look.
+    LaunchedEffect(settings.look) { camera.setLook(settings.look) }
+    // UI glow follows the colour of the scene, smoothly.
+    val sceneArgb by camera.sceneColor.collectAsState()
+    val tint by androidx.compose.animation.animateColorAsState(
+        glowFromScene(sceneArgb), androidx.compose.animation.core.tween(700), label = "sceneTint",
+    )
 
     val vf = remember { ViewfinderState() }
     var selected by remember { mutableStateOf(defaultControl(settings.mode)) }
@@ -206,13 +216,14 @@ fun CameraScreen(
             vf.blinkKey++
             result.onSuccess { burst ->
                 val keep = BurstPrefs.saveBursts(context)
+                val nightLook = settings.look
                 developing++
                 backgroundScope.launch(Dispatchers.Default) {
                     runCatching { File(burst.dir, "gyro.json").writeText(gyroJson(gyro)) }
                     // Develop with the Proview pipeline; fall back to the camera's own JPEG.
-                    val developed = developLock.withLock { runCatching { NightProcessor.develop(burst.dir) } }
+                    val developed = developLock.withLock { runCatching { NightProcessor.develop(burst.dir, look = nightLook) } }
                     val jpeg = developed.getOrNull()?.first ?: burst.photoJpeg
-                    val saved = jpeg?.let { bytes -> runCatching { camera.saveJpeg(bytes) }.getOrNull() }
+                    val saved = jpeg?.let { bytes -> runCatching { camera.saveJpeg(bytes, "_NIGHT") }.getOrNull() }
                     withContext(Dispatchers.Main) {
                         developing--
                         if (saved != null) {
@@ -251,14 +262,28 @@ fun CameraScreen(
         shots++
         val iso = live.iso
         val exposure = live.exposureNs
+        val look = settings.look
         scope.launch {
-            runCatching { camera.capture() }
-                .onSuccess { uri ->
-                    onShot(Shot(uri, iso, exposure))
-                    remaining = remainingShots(context)
-                }
-                .onFailure { showToast("Couldn't save the photo") }
+            val captured = runCatching { camera.captureJpeg() }
             busy = false
+            captured.onSuccess { (bytes, rotation) ->
+                developing++
+                backgroundScope.launch(Dispatchers.Default) {
+                    // Apply the look; if developing fails, keep the camera's own JPEG.
+                    val developed = developLock.withLock { runCatching { PhotoDeveloper.develop(bytes, rotation, look) } }
+                    val saved = runCatching { camera.saveJpeg(developed.getOrNull() ?: bytes) }.getOrNull()
+                    withContext(Dispatchers.Main) {
+                        developing--
+                        if (saved != null) {
+                            onShot(Shot(saved, iso, exposure))
+                            remaining = remainingShots(context)
+                        } else {
+                            showToast("Couldn't save the photo")
+                        }
+                        if (developed.isFailure) showToast("Look not applied: ${developed.exceptionOrNull()?.message ?: "error"}")
+                    }
+                }
+            }.onFailure { showToast("Couldn't take the photo") }
         }
     }
 
@@ -280,7 +305,7 @@ fun CameraScreen(
             Modifier
                 .fillMaxWidth()
                 .height(ds.d(230))
-                .background(Brush.verticalGradient(listOf(Color(0x24FFBE7D), Color(0x00FFBE7D)))),
+                .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.16f), tint.copy(alpha = 0f)))),
         )
 
         // Top bar: mode name + subtitle, focal pill.
@@ -297,7 +322,7 @@ fun CameraScreen(
             Row(
                 Modifier
                     .height(ds.d(40))
-                    .background(spillBrush(0.13f), RoundedCornerShape(ds.d(20)))
+                    .background(spillBrush(0.13f, tint), RoundedCornerShape(ds.d(20)))
                     .glass(RoundedCornerShape(ds.d(20)))
                     .pointerInput(stops) {
                         detectTapGestures(onTap = {
@@ -336,6 +361,12 @@ fun CameraScreen(
                 onSettings(settings.copy(aeAfLocked = false))
             },
             modifier = Modifier.then(ds.at(12f, 94f, 366f, vfH)),
+            onSwipeLook = { step ->
+                val looks = Look.entries
+                val next = looks[(settings.look.ordinal + step + looks.size) % looks.size]
+                onSettings(settings.copy(look = next))
+                showToast(next.label)
+            },
         ) {
             if (nightPlan != null || capturingNight) {
                 SuggestionLine(
@@ -410,6 +441,7 @@ fun CameraScreen(
                 gridOn = gridOn,
                 onToggleGrid = { gridOn = !gridOn },
                 remaining = remaining,
+                tint = tint,
                 modifier = Modifier
                     .then(ds.at(12f, 448f, 366f, 238f))
                     .graphicsLayer {

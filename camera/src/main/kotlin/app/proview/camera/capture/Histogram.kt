@@ -39,4 +39,45 @@ object Histogram {
         }
         return out
     }
+
+    /**
+     * Average scene colour (opaque ARGB) from a YUV_420_888 frame, sampling every 8th chroma
+     * sample. Used to tint the UI's glow with what the camera is looking at.
+     */
+    fun averageColor(image: androidx.camera.core.ImageProxy): Int {
+        val yP = image.planes[0]
+        val uP = image.planes[1]
+        val vP = image.planes[2]
+        val cw = image.width / 2
+        val ch = image.height / 2
+        var sy = 0L
+        var su = 0L
+        var sv = 0L
+        var n = 0
+        var y = 0
+        while (y < ch) {
+            var x = 0
+            while (x < cw) {
+                val yi = (2 * y) * yP.rowStride + 2 * x
+                val ui = y * uP.rowStride + x * uP.pixelStride
+                val vi = y * vP.rowStride + x * vP.pixelStride
+                if (yi < yP.buffer.limit() && ui < uP.buffer.limit() && vi < vP.buffer.limit()) {
+                    sy += yP.buffer.get(yi).toInt() and 0xFF
+                    su += uP.buffer.get(ui).toInt() and 0xFF
+                    sv += vP.buffer.get(vi).toInt() and 0xFF
+                    n++
+                }
+                x += 8
+            }
+            y += 8
+        }
+        if (n == 0) return 0xFF808080.toInt()
+        val yy = sy.toFloat() / n
+        val u = su.toFloat() / n - 128f
+        val v = sv.toFloat() / n - 128f
+        val r = (yy + 1.402f * v).toInt().coerceIn(0, 255)
+        val g = (yy - 0.344f * u - 0.714f * v).toInt().coerceIn(0, 255)
+        val b = (yy + 1.772f * u).toInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+    }
 }

@@ -72,10 +72,27 @@ fun DesignFrame(modifier: Modifier = Modifier, content: @Composable BoxScope.() 
     }
 }
 
-/** The warm light spill the design paints on the pro panel and focal pill. */
-fun spillBrush(spill: Float): Brush = Brush.verticalGradient(
-    listOf(Color(1f, 205 / 255f, 150 / 255f, spill), Color(20 / 255f, 20 / 255f, 22 / 255f, 0.46f)),
+/** The design's warm light spill, rgba(255,205,150,…). */
+val DesignSpill = Color(1f, 205 / 255f, 150 / 255f)
+
+/** The light spill the design paints on the pro panel and focal pill, tinted by the scene. */
+fun spillBrush(spill: Float, tint: Color = DesignSpill): Brush = Brush.verticalGradient(
+    listOf(tint.copy(alpha = spill), Color(20 / 255f, 20 / 255f, 22 / 255f, 0.46f)),
 )
+
+/**
+ * Glow colour from the scene's average colour: its hue, a gentle saturation and full brightness.
+ * Grey scenes fall back to the design's warm spill.
+ */
+fun glowFromScene(argb: Int): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(argb, hsv)
+    val weight = (hsv[1] / 0.15f).coerceIn(0f, 1f)
+    hsv[1] = (hsv[1] * 1.6f).coerceIn(0.25f, 0.6f)
+    hsv[2] = 1f
+    val scene = Color(android.graphics.Color.HSVToColor(hsv))
+    return androidx.compose.ui.graphics.lerp(DesignSpill, scene, weight)
+}
 
 /** Haptics matching the design's vibrate() calls (UI_SPEC §1). */
 object Haptics {

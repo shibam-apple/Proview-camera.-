@@ -79,6 +79,8 @@ data class CameraSettings(
     val focusIndex: Int = 0,
     val evThirds: Int = 0,
     val aeAfLocked: Boolean = false,
+    /** Colour look for the viewfinder and the photo (Film by default). */
+    val look: app.proview.pipeline.look.Look = app.proview.pipeline.look.Look.DEFAULT,
 ) {
     val whiteBalance: WhiteBalance get() = Steps.whiteBalances[wbIndex]
 

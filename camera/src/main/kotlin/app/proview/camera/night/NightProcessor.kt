@@ -1,6 +1,8 @@
 package app.proview.camera.night
 
-import android.graphics.Bitmap
+import app.proview.camera.develop.PhotoDeveloper
+import app.proview.pipeline.look.FilmRender
+import app.proview.pipeline.look.Look
 import app.proview.pipeline.TileAligner
 import app.proview.pipeline.finish.ColorCalibration
 import app.proview.pipeline.finish.FinishParams
@@ -14,7 +16,6 @@ import app.proview.pipeline.raw.NoiseModel
 import app.proview.pipeline.raw.RawFrame
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -47,7 +48,7 @@ object NightProcessor {
     /** 15 merged frames cut noise ~4x, which allows a lot more digital gain than one frame. */
     const val MAX_GAIN = 24f
 
-    fun develop(dir: File, onProgress: (Float) -> Unit = {}): Pair<ByteArray, DevelopReport> {
+    fun develop(dir: File, look: Look = Look.DEFAULT, onProgress: (Float) -> Unit = {}): Pair<ByteArray, DevelopReport> {
         val start = System.currentTimeMillis()
         val cal = JSONObject(File(dir, "calibration.json").readText())
         val burst = JSONObject(File(dir, "burst.json").readText())
@@ -96,14 +97,9 @@ object NightProcessor {
             orientation = cal.optInt("sensorOrientation", 90),
         )
         val out = Finisher.finish(merged, params)
-        onProgress(0.95f)
-
-        val bitmap = Bitmap.createBitmap(out.argb, out.width, out.height, Bitmap.Config.ARGB_8888)
-        val jpeg = ByteArrayOutputStream(8 shl 20).use { bos ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, bos)
-            bos.toByteArray()
-        }
-        bitmap.recycle()
+        onProgress(0.9f)
+        FilmRender.apply(out.argb, out.width, out.height, look)
+        val jpeg = PhotoDeveloper.encode(out.argb, out.width, out.height)
         onProgress(1f)
         val report = DevelopReport(merger.framesMerged, merger.frameWeights.average().toFloat().takeIf { !it.isNaN() } ?: 1f, gain, System.currentTimeMillis() - start)
         return jpeg to report

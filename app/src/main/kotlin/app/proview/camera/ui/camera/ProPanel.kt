@@ -78,6 +78,7 @@ fun ProPanel(
     onToggleGrid: () -> Unit,
     remaining: Int,
     modifier: Modifier = Modifier,
+    tint: Color = app.proview.camera.ui.design.DesignSpill,
 ) {
     val ds = LocalDesign.current
     val shape = RoundedCornerShape(ds.d(34))
@@ -127,7 +128,7 @@ fun ProPanel(
     Box(
         modifier
             .clip(shape)
-            .background(spillBrush(0.13f), shape)
+            .background(spillBrush(0.13f, tint), shape)
             .glass(shape),
     ) {
         // Hairlines and dividers.

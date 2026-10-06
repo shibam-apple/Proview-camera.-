@@ -41,6 +41,10 @@ import android.hardware.camera2.params.RggbChannelVector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.UseCaseGroup
+import app.proview.camera.finder.FinderProcessor
+import app.proview.pipeline.look.Look
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,6 +104,16 @@ class ProCamera(private val context: Context) {
 
     private var settings = CameraSettings()
     private var lastApplied: Pair<ExposurePlan, CameraSettings>? = null
+
+    /** Live viewfinder shader: look LUT + waist-level-finder optics. */
+    val finder = FinderProcessor()
+    private val finderEffect = finder.Effect()
+
+    private val _sceneColor = MutableStateFlow(0xFF7F7468.toInt())
+
+    /** Average colour of the scene (ARGB), for UI that reacts to what the camera sees. */
+    val sceneColor: StateFlow<Int> = _sceneColor.asStateFlow()
+    private var colorFrame = 0
 
     private val _sceneMotion = MutableStateFlow(0f)
 
@@ -171,12 +185,19 @@ class ProCamera(private val context: Context) {
                 _histogram.value = Histogram.luma(y.buffer, image.width, image.height, y.rowStride)
                 val thumb = Histogram.thumbnail(y.buffer, image.width, image.height, y.rowStride)
                 previousThumb?.let { _sceneMotion.value = SceneMotion.difference(it, thumb) }
+                if (colorFrame++ % 3 == 0) _sceneColor.value = Histogram.averageColor(image)
                 previousThumb = thumb
                 image.close()
             }
 
             p.unbindAll()
-            val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture, analysis)
+            val group = UseCaseGroup.Builder()
+                .addUseCase(preview)
+                .addUseCase(capture)
+                .addUseCase(analysis)
+                .addEffect(finderEffect)
+                .build()
+            val cam = p.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, group)
             camera = cam
             _facts.value = readFacts(cam)
             lastApplied = null
@@ -259,6 +280,37 @@ class ProCamera(private val context: Context) {
         }
     }
 
+    /** Switches the look in the viewfinder (the photo pipeline applies it at develop time). */
+    suspend fun setLook(look: Look) = withContext(Dispatchers.Default) { finder.setLook(look) }
+
+    /**
+     * Full-resolution JPEG from the camera's own pipeline, in memory, with the clockwise rotation
+     * needed to display it upright. The look is applied before it is saved.
+     */
+    suspend fun captureJpeg(): Pair<ByteArray, Int> = suspendCancellableCoroutine { cont ->
+        val capture = imageCapture ?: run {
+            cont.resumeWithException(IllegalStateException("Camera not ready"))
+            return@suspendCancellableCoroutine
+        }
+        capture.takePicture(ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: ImageProxy) {
+                try {
+                    val buf = image.planes[0].buffer
+                    val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
+                    cont.resume(bytes to image.imageInfo.rotationDegrees)
+                } catch (t: Throwable) {
+                    cont.resumeWithException(t)
+                } finally {
+                    image.close()
+                }
+            }
+
+            override fun onError(exception: ImageCaptureException) {
+                cont.resumeWithException(exception)
+            }
+        })
+    }
+
     fun setZoomRatio(ratio: Float) {
         val cam = camera ?: return
         cam.cameraControl.setZoomRatio(ratio.coerceIn(1f, _facts.value.maxZoomRatio))
@@ -329,8 +381,8 @@ class ProCamera(private val context: Context) {
 
     /** Saves camera-encoded JPEG bytes to Pictures/Proview, like [capture]. */
     @SuppressLint("InlinedApi")
-    suspend fun saveJpeg(bytes: ByteArray): Uri = withContext(Dispatchers.IO) {
-        val name = "PRV_" + SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date()) + "_NIGHT"
+    suspend fun saveJpeg(bytes: ByteArray, suffix: String = ""): Uri = withContext(Dispatchers.IO) {
+        val name = "PRV_" + SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date()) + suffix
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")

@@ -12,8 +12,8 @@ android {
         applicationId = "app.proview.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.4.1-n2"
+        versionCode = 6
+        versionName = "0.5.0-looks"
     }
 
     signingConfigs {

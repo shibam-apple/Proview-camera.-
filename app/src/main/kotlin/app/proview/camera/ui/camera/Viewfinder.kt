@@ -79,6 +79,8 @@ fun Viewfinder(
     onHoldLock: (Offset) -> Unit,
     onUnlock: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Sideways swipe: +1 = next look, -1 = previous (UI_SPEC §2, Gestures). */
+    onSwipeLook: (Int) -> Unit = {},
     overlay: @Composable () -> Unit,
 ) {
     val ds = LocalDesign.current
@@ -89,6 +91,8 @@ fun Viewfinder(
     val tapFocus by rememberUpdatedState(onTapFocus)
     val holdLock by rememberUpdatedState(onHoldLock)
     val unlock by rememberUpdatedState(onUnlock)
+    val swipeLook by rememberUpdatedState(onSwipeLook)
+    val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { ds.d(50).toPx() }
 
     DisposableEffect(Unit) {
         onDispose { camera.unbind() }
@@ -126,10 +130,23 @@ fun Viewfinder(
             }
         }
 
-        // Gestures: tap to focus, hold 480 ms to lock AE/AF, tap again to unlock.
+        // Gestures: tap to focus, hold 480 ms to lock AE/AF, tap again to unlock, swipe for looks.
         Box(
             Modifier
                 .fillMaxSize()
+                .pointerInput(Unit) {
+                    var dx = 0f
+                    androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                        onDragStart = { dx = 0f },
+                        onHorizontalDrag = { change, d -> change.consume(); dx += d },
+                        onDragEnd = {
+                            if (kotlin.math.abs(dx) >= swipeThreshold) {
+                                Haptics.tick(view)
+                                swipeLook(if (dx < 0) 1 else -1)
+                            }
+                        },
+                    )
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onPress = {
