@@ -119,37 +119,62 @@ The merged result today is clean but can be softer than it will be.
 ## 3. Lab: single-image enhancement (`SingleImageEnhancer.kt`)
 
 The Lab is for photos that weren't shot as a burst. There's only one frame, so the noise can't be
-averaged away. Each stage has to guess what is noise and what is detail. Every stage below is
-edge-aware, meaning it smooths along edges, never across them.
+averaged away. Each stage has to guess what is noise and what is detail. Every stage is
+edge-aware (it smooths along edges, never across them) and **adaptive**: it measures the photo
+first and only does what that photo needs, so a good photo is barely touched. The Lab opens on
+the **Natural** look, so what you see is the enhancement itself. Film is optional.
 
-1. **Measure the noise (σ)**: Immerkær's method. The image is convolved with a 3×3 Laplacian
-   difference kernel that cancels smooth gradients, so what's left is mostly noise. Pixels on
-   strong edges (gradient > 0.12) are skipped so edges don't count as noise. Every later stage
-   is set from this σ, so a clean photo is barely touched and a noisy one is cleaned hard.
+1. **Measure the noise (σ)**: Immerkær's method. A 3×3 Laplacian-difference kernel cancels
+   smooth gradients, so what's left is mostly noise. Strong edges (gradient > 0.12) are skipped.
+   - It's measured at full and half resolution, and the larger value is used. Noise in edited,
+     re-compressed or upscaled photos is spread over a few pixels and barely shows at full
+     resolution.
+   - A floor of 0.004 lets DENOISE also clean JPEG mottling.
 2. **Split into luma + chroma** (BT.601 YCbCr).
-3. **Luma denoise: guided filter** (He et al.), radius 2, *ε* = (2.5σ)² × (0.5 + 1.5·DENOISE).
+3. **Luma denoise** (DENOISE): guided filter (He et al.), radius 2–3, *ε* = (2.5σ)² ×
+   (0.5 + 1.5·DENOISE), blended by √DENOISE.
    - In flat areas the local variance is below *ε*, so the filter averages, which removes noise.
    - At edges the variance is far above *ε*, so the output follows the input and the edge stays
      sharp.
-   - The DENOISE knob blends between original and filtered and also raises *ε*.
-4. **Chroma denoise**: the guided filter again, radius 6, guided by the *denoised luma*. Colour
-   noise is much worse than luma noise and the eye forgives soft colour, so this is strong.
-   Using luma as the guide keeps colour edges lined up with real edges.
-5. **Local tone mapping** (TONE knob):
-   - Take log-luminance and split it into a **base** layer (large-scale lighting: a guided filter
-     with radius 2% of the image and ε 0.15) and a **detail** layer (everything else).
-   - Compress only the base, by 0.45·TONE, around the image's key, with a nudge of the key
-     towards middle grey (0.16). This lifts dark regions and holds back bright ones.
-   - Add the detail back unchanged, so texture keeps its contrast while the overall range
-     shrinks. This is what HDR-style "shadow recovery without a flat look" means.
-   - The per-pixel gain is limited to 0.4–6×. The same soft highlight shoulder as the night path
-     stops highlights clipping.
-   - Colour is scaled by the same gain, so saturation is kept.
-6. **Sharpening** (DETAIL knob): an unsharp mask with radius 1 (two box passes ≈ Gaussian).
-   - It's **cored at 2σ**: differences smaller than the noise level are ignored, so it sharpens
-     edges, not grain.
-   - Amount = 1.2 × DETAIL.
-7. **Look** (section 4).
+   - If σ > 0.015 (a really noisy photo), a second, wider pass (radius 5–7, *ε* = (1.2σ)²)
+     evens out the coarse blotches the first pass leaves.
+4. **Chroma denoise**: the guided filter again, radius ≥ 6 (scaled with the image), guided by the
+   *denoised luma*. Colour noise looks worse than luma noise and the eye forgives soft colour,
+   so this is strong. Using luma as the guide keeps colour edges lined up with real edges.
+5. **Tone and colour** (TONE), in four adaptive steps:
+   1. **Dehaze**: haze lifts the black point, so the darkest pixels are grey, not black. The
+      0.5th percentile of min(R,G,B) is measured, and up to 1.2·TONE of that lift (above 1.5%)
+      is subtracted from every channel and the range is rescaled. This is the dark-channel haze
+      model with a constant transmission: contrast and colour come back. A clean photo has a
+      black point near 0 and is untouched.
+   2. **Shadow lift**: log-luminance is split by an edge-aware guided filter (radius 3.5% of the
+      short side, *ε* 0.08) into a **base** (large-scale lighting) and detail.
+      - Where the base is darker than 12% linear, it's lifted 80%·TONE of the way up.
+      - A whole-image lift of up to 2 stops applies only when the photo's overall key is under
+        10%.
+      - Gains are always ≥ 1: this step **never darkens**. That keeps bright skies blue instead
+        of the grey of the first version.
+      - A soft shoulder stops lifted pixels from clipping.
+   3. **Contrast curve**: a power curve on luma, anchored at the photo's own median so brightness
+      doesn't shift. Its slope at the median is 1 + 0.4·TONE below and 1 + 0.12·TONE above, so it
+      is gentler in the highlights and clouds keep their detail. It's applied as a ratio to RGB so
+      hues don't shift. Overflow is pulled toward the new luma instead of clipped.
+   4. **Vibrance** (in Oklab): muted colours gain up to 50%·TONE chroma. Already-vivid colours
+      barely move, skin hues (25°–80°) get half, and near-greys stay neutral.
+6. **Detail** (DETAIL):
+   - **Clarity**: luma minus an edge-aware blur (guided filter, radius ~1.2% of the short side,
+     *ε* 0.004) is boosted 0.9·DETAIL in the midtones. This adds depth and texture without halos
+     at strong edges.
+   - **Sharpening**: the finest layer (radius 1) is boosted 1.3·DETAIL.
+   - Both are **cored** at the noise level (1.5σ / 2σ) and limited to ±12%. They're also scaled
+     by a **texture mask** (local standard deviation between 2.5σ and 6σ + 1%). Smooth areas
+     like sky, skin and walls get no boost, so their grain and JPEG blocks stay quiet.
+7. **Look** (section 4). On Film, the grain is sized to the image: a 12 MP photo gets 1.6 px
+   clumps, and a smaller image gets finer, quieter grain. The preview and the saved photo
+   match, and the grain never looks like dirt on the preview.
+
+The noise, shadows, contrast and clipping readouts are measured **before** the look, so Film's
+grain never counts as noise.
 
 The Lab measures before and after and shows it on screen:
 

@@ -18,6 +18,12 @@ object FilmRender {
         val glow = if (look.halation > 0f) halationMap(argb, width, height) else null
         val gw = (width + 3) / 4
         val gh = (height + 3) / 4
+        // Grain is sized for a 12 MP photo (short side ~3000 px). On a smaller image (a preview,
+        // a downscaled web photo) the same film would be resampled finer and quieter, so shrink
+        // the clumps and their amplitude to match; a larger image gets bigger clumps.
+        val s = minOf(width, height) / 3000f
+        val cell = maxOf(1f, 1.6f * s)
+        val grainScale = s.coerceIn(0.35f, 1f)
         IntStream.range(0, height).parallel().forEach { y ->
             val px = FloatArray(3)
             for (x in 0 until width) {
@@ -38,8 +44,8 @@ object FilmRender {
                 }
                 if (look.grain > 0f) {
                     val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
-                    val amp = look.grain * 4f * lum * (1f - lum) + look.grain * 0.15f
-                    val n = grainNoise(x, y, seed) * amp
+                    val amp = (look.grain * 4f * lum * (1f - lum) + look.grain * 0.15f) * grainScale
+                    val n = grainNoise(x, y, seed, cell) * amp
                     r += n; g += n; b += n
                 }
                 argb[i] = (0xFF shl 24) or
@@ -93,10 +99,10 @@ object FilmRender {
         return top + (bottom - top) * ty
     }
 
-    /** Zero-mean grain in about [-1, 1]: smooth noise on a 1.6 px lattice, so it clumps like film. */
-    fun grainNoise(x: Int, y: Int, seed: Int): Float {
-        val fx = x / 1.6f
-        val fy = y / 1.6f
+    /** Zero-mean grain in about [-1, 1]: smooth noise on a [cell]-px lattice, so it clumps like film. */
+    fun grainNoise(x: Int, y: Int, seed: Int, cell: Float = 1.6f): Float {
+        val fx = x / cell
+        val fy = y / cell
         val x0 = fx.toInt()
         val y0 = fy.toInt()
         val tx = fx - x0

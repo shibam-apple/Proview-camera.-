@@ -28,3 +28,17 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Desktop tuning harness for the Lab enhancer (not part of the app or CI).
+tasks.register<JavaExec>("enhanceSamples") {
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("app.proview.pipeline.tools.EnhanceSamplesKt")
+    args = listOfNotNull(
+        project.findProperty("in") as String?,
+        project.findProperty("out") as String?,
+        (project.findProperty("look") as String?) ?: "NATURAL",
+        (project.findProperty("p") as String?) ?: "-",
+        project.findProperty("only") as String?,
+    )
+    maxHeapSize = "4g"
+}
