@@ -42,13 +42,16 @@ import app.proview.camera.ui.camera.CameraScreen
 import app.proview.camera.ui.design.Palette
 import app.proview.camera.ui.design.Type
 import app.proview.camera.ui.detail.DetailScreen
+import app.proview.camera.ui.lab.LabScreen
 import app.proview.camera.ui.library.LibraryScreen
+import android.net.Uri
+import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import app.proview.camera.ui.camera.BurstPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private enum class Screen { CAMERA, LIBRARY, DETAIL, DEVICE }
+private enum class Screen { CAMERA, LIBRARY, DETAIL, DEVICE, LAB }
 
 class MainActivity : ComponentActivity() {
 
@@ -73,11 +76,16 @@ class MainActivity : ComponentActivity() {
         var settings by remember { mutableStateOf(CameraSettings()) }
         var photos by remember { mutableStateOf<List<PhotoRecord>>(emptyList()) }
         var openPhoto by remember { mutableStateOf<PhotoRecord?>(null) }
+        var labUri by remember { mutableStateOf<Uri?>(null) }
 
         LaunchedEffect(Unit) { photos = withContext(Dispatchers.IO) { store.all() } }
 
         BackHandler(enabled = screen != Screen.CAMERA) {
-            screen = if (screen == Screen.DETAIL) Screen.LIBRARY else Screen.CAMERA
+            screen = when (screen) {
+                Screen.DETAIL -> Screen.LIBRARY
+                Screen.LAB -> if (openPhoto != null) Screen.DETAIL else Screen.LIBRARY
+                else -> Screen.CAMERA
+            }
         }
 
         fun toggleFavourite(p: PhotoRecord) {
@@ -139,8 +147,15 @@ class MainActivity : ComponentActivity() {
                     },
                     onFavourite = { toggleFavourite(p) },
                     onShare = { share(p) },
+                    onEnhance = { labUri = p.uri; screen = Screen.LAB },
                 )
             } ?: run { screen = Screen.LIBRARY }
+
+            Screen.LAB -> LabScreen(
+                initial = labUri,
+                onBack = { screen = if (openPhoto != null) Screen.DETAIL else Screen.LIBRARY },
+                onToast = { Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show() },
+            )
 
             Screen.DEVICE -> {
                 val report by produceState<DeviceReport?>(initialValue = null) {

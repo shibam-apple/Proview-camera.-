@@ -379,21 +379,9 @@ class ProCamera(private val context: Context) {
         }
     }
 
-    /** Saves camera-encoded JPEG bytes to Pictures/Proview, like [capture]. */
-    @SuppressLint("InlinedApi")
-    suspend fun saveJpeg(bytes: ByteArray, suffix: String = ""): Uri = withContext(Dispatchers.IO) {
-        val name = "PRV_" + SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date()) + suffix
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) put(MediaStore.MediaColumns.RELATIVE_PATH, ALBUM_PATH)
-        }
-        val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: throw IllegalStateException("MediaStore insert failed")
-        resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IllegalStateException("Couldn't open $uri")
-        uri
-    }
+    /** Saves JPEG bytes to Pictures/Proview. */
+    suspend fun saveJpeg(bytes: ByteArray, suffix: String = ""): Uri =
+        withContext(Dispatchers.IO) { app.proview.camera.develop.PhotoIo.saveJpeg(context, bytes, suffix) }
 
     companion object {
         const val HISTOGRAM_BINS = 16

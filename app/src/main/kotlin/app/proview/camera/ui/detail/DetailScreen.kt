@@ -63,6 +63,7 @@ fun DetailScreen(
     onShootThisLook: () -> Unit,
     onFavourite: () -> Unit,
     onShare: () -> Unit,
+    onEnhance: () -> Unit = {},
 ) {
     val view = LocalView.current
     DesignFrame {
@@ -87,7 +88,7 @@ fun DetailScreen(
                         color = Palette.Text2,
                     )
                 }
-                GlassCircle(44f, onClick = null) {
+                GlassCircle(44f, onClick = { Haptics.tap(view); onEnhance() }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(ds.d(3.8f))) {
                         repeat(3) { Box(Modifier.size(ds.d(3.6f)).background(Palette.Text1, CircleShape)) }
                     }

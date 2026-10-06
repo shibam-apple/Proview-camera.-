@@ -27,6 +27,7 @@ the device check screen (long-press "Library").
 
 ## Docs
 
+- [How the algorithms work](docs/ALGORITHM.md): day, night and Lab paths step by step, looks, viewfinder shader. **Lab test mode**: open a photo → "•••"
 - [Product & engineering spec](docs/SPEC.md): pipeline, colour science, speed budgets, testing, milestones
 - [UI spec](docs/UI_SPEC.md): exact layout, tokens, gestures and motion from the design
 - [Design files](docs/design/): source of truth for the UI (Camera, Library, Photo detail)
